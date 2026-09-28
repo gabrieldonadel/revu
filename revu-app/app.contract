@@ -67,10 +67,10 @@ style Code
 
 component Revu
   state tick = 0
-  state pendingDevice = none
+  state nowMs = 0
 
   resource session = currentSession() as shape Session
-  resource inbox = reviewRequests(session.login) as shape Inbox
+  resource inbox = reviewRequests(session.login, nowMs) as shape Inbox
 
   mutation device as shape DeviceCode refreshes session
   mutation grant as shape Grant refreshes session, inbox
@@ -78,32 +78,39 @@ component Revu
   mutation signout as shape Session refreshes session, inbox
 
   derive signedIn = session.signedIn
-  derive awaiting = match pendingDevice { case some(d) => true, case none => false }
+  derive granted = match grant { case some(g) => g.status == "ok", case none => false }
 
-  action startSignIn writes device
-    send device = deviceStart()
-  action remember(code: string) writes pendingDevice
-    pendingDevice = some(code)
-  action cancelSignIn writes pendingDevice, device
-    pendingDevice = none
+  action startSignIn writes device, grant, nowMs
+    nowMs = now()
+    grant = none
+    send device = deviceStart(nowMs)
+  action cancelSignIn writes device, grant
     device = none
-  action doSignOut writes signout, pendingDevice
-    pendingDevice = none
+    grant = none
+  action doSignOut writes signout, device, grant
+    device = none
+    grant = none
     send signout = signOut()
   action markRead(id: string) writes seen
     send seen = markSeen(id)
-  action refreshNow
+  action refreshNow writes nowMs
+    nowMs = now()
     refresh inbox
-  // One 5s clock: poll the device grant while a code is pending; refresh the
-  // inbox every 12th tick (60s) when signed in.
-  action clock writes tick, grant, pendingDevice
+  // One 5s clock: while a device code is out and not yet granted, poll the
+  // grant; once signed in, refresh the inbox every 12th tick (60s).
+  action clock writes tick, grant, nowMs
     tick = tick + 1
-    match pendingDevice
-      case some(code)
-        send grant = devicePoll(code)
-      case none
-        if signedIn and tick % 12 == 0
-          refresh inbox
+    nowMs = now()
+    if signedIn
+      if tick % 12 == 0
+        refresh inbox
+    else
+      match device
+        case some(d)
+          if d.ok and not granted
+            send grant = devicePoll(d.deviceCode)
+        case none
+          tick = tick
 
   task poll mount
     every(5000, clock)
@@ -122,6 +129,8 @@ component Revu
               text d.userCode class=Code testId="user-code"
               link href=d.verificationUri color="#2563eb" font-size=13 testId="verification-link"
                 text d.verificationUri
+              when d.error != ""
+                text d.error color="#b91c1c" font-size=13 testId="device-error"
               match grant
                 case some(g)
                   text g.status == "ok" ? `Signed in as ${g.login}` : g.error != "" ? g.error : "Waiting for approval…" class=Muted testId="grant-status"

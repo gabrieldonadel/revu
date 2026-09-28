@@ -29,8 +29,8 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-function age(iso: string): string {
-  const minutes = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+function age(iso: string, now: number): string {
+  const minutes = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
   if (!Number.isFinite(minutes)) return '';
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.round(minutes / 60);
@@ -38,8 +38,8 @@ function age(iso: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-function clock(): string {
-  const d = new Date();
+function clock(now: number): string {
+  const d = new Date(now);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
@@ -81,7 +81,7 @@ async function currentSession(store: Store): Promise<Session> {
 type DeviceCode = Result<'deviceStart'>;
 type Grant = Result<'devicePoll'>;
 
-async function deviceStart(): Promise<DeviceCode> {
+async function deviceStart(now: number): Promise<DeviceCode> {
   const empty: DeviceCode = { stamp: ++stamp, ok: false, userCode: '', verificationUri: '', deviceCode: '', expiresAt: 0, error: '' };
   try {
     const res = await fetch('https://github.com/login/device/code', {
@@ -97,7 +97,7 @@ async function deviceStart(): Promise<DeviceCode> {
       userCode: String(body.user_code ?? ''),
       verificationUri: String(body.verification_uri ?? ''),
       deviceCode: String(body.device_code ?? ''),
-      expiresAt: Date.now() + Number(body.expires_in ?? 900) * 1000,
+      expiresAt: now + Number(body.expires_in ?? 900) * 1000,
     };
   } catch (e) {
     return { ...empty, error: `device code failed: ${message(e)}` };
@@ -150,7 +150,7 @@ async function withDb<T>(storage: Storage, work: (db: Database) => Promise<T>): 
 
 const emptyInbox: Inbox = { ready: false, login: '', unread: 0, total: 0, polledAt: 'never', error: '', reviews: [] };
 
-async function reviewRequests(store: Store, storage: Storage, login: string): Promise<Inbox> {
+async function reviewRequests(store: Store, storage: Storage, login: string, now: number): Promise<Inbox> {
   if (!store.get('github.token')) return emptyInbox;
   let items: Json[];
   try {
@@ -172,7 +172,7 @@ async function reviewRequests(store: Store, storage: Storage, login: string): Pr
       url: String(item.html_url ?? ''),
       author: String(item.user?.login ?? ''),
       requestedAt: String(item.updated_at ?? ''),
-      age: age(String(item.updated_at ?? '')),
+      age: age(String(item.updated_at ?? ''), now),
       unread: true,
     };
   });
@@ -180,9 +180,9 @@ async function reviewRequests(store: Store, storage: Storage, login: string): Pr
   // Seen-state: bake/agent mode has no storage; degrade to "all unread".
   try {
     await withDb(storage, async (db) => {
-      const now = new Date().toISOString();
+      const firstSeen = new Date(now).toISOString();
       for (const r of reviews) {
-        await db.execute('INSERT OR IGNORE INTO prs (id, first_seen_at, seen) VALUES (?, ?, 0)', [r.id, now]);
+        await db.execute('INSERT OR IGNORE INTO prs (id, first_seen_at, seen) VALUES (?, ?, 0)', [r.id, firstSeen]);
       }
       // Rows are positional (SQLValue[]), in SELECT order.
       const rows = await db.query('SELECT id, seen FROM prs');
@@ -199,7 +199,7 @@ async function reviewRequests(store: Store, storage: Storage, login: string): Pr
     login,
     unread: reviews.filter((r) => r.unread).length,
     total: reviews.length,
-    polledAt: clock(),
+    polledAt: clock(now),
     error: '',
     reviews,
   };
@@ -216,8 +216,8 @@ async function markSeen(storage: Storage, id: string): Promise<Result<'markSeen'
 
 const sources: Sources = {
   currentSession: (_, store) => currentSession(store),
-  reviewRequests: ([login], store, storage) => reviewRequests(store, storage, String(login ?? '')),
-  deviceStart: () => deviceStart(),
+  reviewRequests: ([login, now], store, storage) => reviewRequests(store, storage, String(login ?? ''), Number(now)),
+  deviceStart: ([now]) => deviceStart(Number(now)),
   devicePoll: ([code], store) => devicePoll(store, String(code)),
   signOut: (_, store) => {
     store.forget('github.token');
