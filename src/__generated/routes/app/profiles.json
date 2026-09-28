@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "selectorModuleId": "/src/app/route-modules.native.ts",
+  "defaultRegistryId": "/src/app/routes.runtime.native.core.ts",
+  "profiles": []
+}

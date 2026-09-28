@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "revu config",
+  "type": "object",
+  "required": ["github", "sidecar"],
+  "properties": {
+    "github": {
+      "type": "object",
+      "required": ["oauthClientId", "scopes"],
+      "properties": {
+        "oauthClientId": { "type": "string", "description": "GitHub OAuth App client ID with Device Flow enabled. Not a secret." },
+        "scopes": { "type": "array", "items": { "type": "string" } },
+        "pollIntervalSeconds": { "type": "integer", "minimum": 10, "default": 60 }
+      }
+    },
+    "sidecar": {
+      "type": "object",
+      "properties": {
+        "host": { "type": "string", "default": "127.0.0.1" },
+        "port": { "type": "integer", "default": 47831 }
+      }
+    }
+  }
+}

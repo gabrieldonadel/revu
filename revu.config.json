@@ -1,0 +1,12 @@
+{
+  "$schema": "./sidecar/config.schema.json",
+  "github": {
+    "oauthClientId": "Ov23li3weoDK9jZ4ycnp",
+    "scopes": ["notifications", "repo", "read:user"],
+    "pollIntervalSeconds": 60
+  },
+  "sidecar": {
+    "host": "127.0.0.1",
+    "port": 47831
+  }
+}

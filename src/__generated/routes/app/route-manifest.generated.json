@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "sourceRoot": "app",
+  "generator": {
+    "name": "route-registry-gen",
+    "llp": "RFC 0494 R-A"
+  },
+  "authority": true,
+  "routes": [
+    {
+      "routeId": "app/about.contract",
+      "name": "about",
+      "kind": "route",
+      "pattern": "/about",
+      "params": [],
+      "score": 12,
+      "layoutIds": [],
+      "slot": null,
+      "owner": {
+        "tier": "contract",
+        "module": "about.contract",
+        "meta": null,
+        "sourceVersion": "441d2b570e796e62"
+      },
+      "platforms": [
+        "unsuffixed"
+      ],
+      "platformSplitReason": null,
+      "profiles": [],
+      "webOnly": false,
+      "coreProfile": true,
+      "presentation": null,
+      "readiness": null,
+      "agentCapabilities": []
+    },
+    {
+      "routeId": "app/index.contract",
+      "name": "index",
+      "kind": "route",
+      "pattern": "/",
+      "params": [],
+      "score": 0,
+      "layoutIds": [],
+      "slot": null,
+      "owner": {
+        "tier": "contract",
+        "module": "index.contract",
+        "meta": null,
+        "sourceVersion": "0b9eab783fccdff9"
+      },
+      "platforms": [
+        "unsuffixed"
+      ],
+      "platformSplitReason": null,
+      "profiles": [],
+      "webOnly": false,
+      "coreProfile": true,
+      "presentation": null,
+      "readiness": null,
+      "agentCapabilities": []
+    }
+  ],
+  "index": {
+    "coreProfileId": "app",
+    "profiles": [],
+    "webOnlyRouteIds": [],
+    "owners": [
+      {
+        "pattern": "/about",
+        "routeId": "app/about.contract",
+        "owner": {
+          "kind": "core"
+        }
+      },
+      {
+        "pattern": "/",
+        "routeId": "app/index.contract",
+        "owner": {
+          "kind": "core"
+        }
+      }
+    ],
+    "driftWarnings": []
+  },
+  "admission": {
+    "overlay": [
+      "routes[].pattern",
+      "routes[].params",
+      "routes[].score",
+      "routes[].kind",
+      "routes[].name",
+      "routes[].layoutIds",
+      "routes[].slot",
+      "routes[].platforms",
+      "routes[].platformSplitReason",
+      "routes[].profiles",
+      "routes[].webOnly",
+      "routes[].coreProfile",
+      "routes[].presentation",
+      "routes[].readiness",
+      "routes[].agentCapabilities",
+      "index.*"
+    ],
+    "securityBearing": [
+      "routes[].owner.*",
+      "sourceRoot",
+      "schemaVersion"
+    ]
+  }
+}
