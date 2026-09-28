@@ -3,29 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "postinstall": "node ./scripts/link-exact.mjs",
-    "dev": "bun run generate:routes && node node_modules/@exact/devtools/src/scripts/vite-cli.mjs --config vite.config.mjs",
-    "build": "bun run generate:routes && bun run check:platform-splits && node node_modules/@exact/devtools/src/scripts/vite-cli.mjs build --config vite.config.mjs",
-    "exact:web": "bun node_modules/@exact/server/src/cli.ts --config exact.web.config.mjs",
-    "generate:routes": "bun run node_modules/@exact/devtools/src/scripts/generate-route-registries.ts --source-root src",
-    "check:platform-splits": "bun run node_modules/@exact/devtools/src/scripts/check-platform-splits.ts --source-root src",
-    "typecheck": "bun run generate:routes && bun run check:platform-splits && node ./scripts/typecheck-app.mjs",
-    "typecheck:all": "bun run generate:routes && bun run check:platform-splits && tsc --noEmit",
-    "setup-mcp": "bun run node_modules/@exact/devtools/src/scripts/setup-mcp.ts",
     "sidecar": "bun run sidecar/src/index.ts",
     "sidecar:dev": "bun --watch run sidecar/src/index.ts",
     "sidecar:typecheck": "bunx tsc --noEmit -p sidecar/tsconfig.json",
-    "dev:mac": "exact run macos --app \"${EXACT_MAC_APP:?set EXACT_MAC_APP to a built ExactAppMac.app}\" --port 5814"
-  },
-  "dependencies": {
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "app:web": "bun revu-app/exact.mjs web",
+    "app:mac": "bun revu-app/exact.mjs mac --run"
   },
   "devDependencies": {
-    "@exact/guide": "npm:@ccheever/exact-guide@0.1.0",
-    "@types/bun": "^1.4.2",
-    "@types/node": "^20.11.0",
-    "typescript": "^5.3.0",
-    "vite": "^8.0.0"
+    "@types/bun": "latest"
   }
 }

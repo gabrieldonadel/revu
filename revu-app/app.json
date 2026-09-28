@@ -1,0 +1,35 @@
+{
+  "name": "revu",
+  "short_name": "revu",
+  "id": "dev.donadel.revu",
+  "start_url": "/",
+  "display": "standalone",
+  "app": {
+    "id": "dev.donadel.revu",
+    "name": "revu"
+  },
+  "host": {
+    "macos": {
+      "minimumOS": "14.0",
+      "window": {
+        "width": 760,
+        "height": 560,
+        "minWidth": 520,
+        "minHeight": 400
+      }
+    },
+    "web": {}
+  },
+  "deploy": {
+    "store": {
+      "web": "0",
+      "macos": "0"
+    }
+  },
+  "theme_color": "#111827",
+  "background_color": "#ffffff",
+  "rust": false,
+  "typescript": {
+    "placement": "main"
+  }
+}

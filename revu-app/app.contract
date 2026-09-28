@@ -1,0 +1,160 @@
+// revu — GitHub review requests, on exact2 (windowed first; the menu bar item
+// and notifications are capability asks, LLP 0003 in this repo's llp/).
+// The data is app.ts: device-flow sign-in, polling, and seen-state.
+
+routes nav
+  tab home "/"
+  notfound
+
+shape Session
+  signedIn: bool
+  login: string
+  error: string
+
+shape DeviceCode
+  stamp: number
+  ok: bool
+  userCode: string
+  verificationUri: string
+  deviceCode: string
+  expiresAt: number
+  error: string
+
+shape Grant
+  stamp: number
+  status: string
+  login: string
+  error: string
+
+shape Review
+  id: string
+  repo: string
+  number: number
+  title: string
+  url: string
+  author: string
+  requestedAt: string
+  age: string
+  unread: bool
+
+shape Inbox
+  ready: bool
+  login: string
+  unread: number
+  total: number
+  polledAt: string
+  error: string
+  reviews: list<Review>
+
+shape Seen
+  stamp: number
+  id: string
+
+style Page
+  width="100%" max-width=760 margin-left="auto" margin-right="auto" padding=24 box-sizing="border-box"
+style Title
+  font-size=28 font-weight=700
+style Muted
+  color="#6b7280" font-size=13
+style Btn
+  padding-top=8 padding-bottom=8 padding-left=14 padding-right=14 border-radius=8 border-style="solid" border-width=1 border-color="#111827" background-color="#111827" color="#ffffff" font-size=14
+style BtnGhost
+  padding-top=6 padding-bottom=6 padding-left=10 padding-right=10 border-radius=8 border-style="solid" border-width=1 border-color="#d1d5db" background-color="transparent" color="#111827" font-size=13
+style Card
+  padding=12 border-radius=10 background-color="#f3f4f6" margin-bottom=8 width="100%" box-sizing="border-box"
+style Code
+  font-size=40 font-weight=700 letter-spacing=4
+
+component Revu
+  state tick = 0
+  state pendingDevice = none
+
+  resource session = currentSession() as shape Session
+  resource inbox = reviewRequests(session.login) as shape Inbox
+
+  mutation device as shape DeviceCode refreshes session
+  mutation grant as shape Grant refreshes session, inbox
+  mutation seen as shape Seen refreshes inbox
+  mutation signout as shape Session refreshes session, inbox
+
+  derive signedIn = session.signedIn
+  derive awaiting = match pendingDevice { case some(d) => true, case none => false }
+
+  action startSignIn writes device
+    send device = deviceStart()
+  action remember(code: string) writes pendingDevice
+    pendingDevice = some(code)
+  action cancelSignIn writes pendingDevice, device
+    pendingDevice = none
+    device = none
+  action doSignOut writes signout, pendingDevice
+    pendingDevice = none
+    send signout = signOut()
+  action markRead(id: string) writes seen
+    send seen = markSeen(id)
+  action refreshNow
+    refresh inbox
+  // One 5s clock: poll the device grant while a code is pending; refresh the
+  // inbox every 12th tick (60s) when signed in.
+  action clock writes tick, grant, pendingDevice
+    tick = tick + 1
+    match pendingDevice
+      case some(code)
+        send grant = devicePoll(code)
+      case none
+        if signedIn and tick % 12 == 0
+          refresh inbox
+
+  task poll mount
+    every(5000, clock)
+
+  view
+    column class=Page
+      row justify-content="space-between" align-items="center"
+        text "revu" class=Title testId="title"
+        text signedIn ? `${inbox.unread} unread · ${inbox.total} pending` : "not signed in" class=Muted testId="summary"
+
+      when not signedIn
+        match device
+          case some(d)
+            column gap=8 testId="device-code"
+              text "Enter this code on GitHub:" class=Muted
+              text d.userCode class=Code testId="user-code"
+              link href=d.verificationUri color="#2563eb" font-size=13 testId="verification-link"
+                text d.verificationUri
+              match grant
+                case some(g)
+                  text g.status == "ok" ? `Signed in as ${g.login}` : g.error != "" ? g.error : "Waiting for approval…" class=Muted testId="grant-status"
+                case none
+                  text "Waiting for approval…" class=Muted testId="grant-status"
+              button press=cancelSignIn class=BtnGhost testId="cancel-sign-in"
+                text "Cancel"
+          case none
+            column gap=8
+              text "Sign in to see the pull requests waiting for your review." class=Muted
+              button press=startSignIn class=Btn testId="sign-in"
+                text "Sign in with GitHub"
+              when session.error != ""
+                text session.error color="#b91c1c" font-size=13 testId="error"
+
+      when signedIn
+        column gap=8
+          row gap=8 align-items="center"
+            text `Signed in as ${session.login} · polled ${inbox.polledAt}` class=Muted testId="signed-in-as"
+            button press=refreshNow class=BtnGhost testId="refresh"
+              text pending(inbox) ? "Refreshing…" : "Refresh"
+            button press=doSignOut class=BtnGhost testId="sign-out"
+              text "Sign out"
+          when inbox.error != ""
+            text inbox.error color="#b91c1c" font-size=13 testId="error"
+          when inbox.ready and inbox.total == 0
+            text "No pending review requests." class=Muted testId="empty"
+          each r in inbox.reviews key=r.id
+            column class=Card testId=`pr-${r.id}`
+              row justify-content="space-between" align-items="center"
+                link href=r.url color="#111827" font-size=15 font-weight=r.unread ? 600 : 400
+                  text `${r.unread ? "● " : ""}${r.repo}#${r.number} — ${r.title}`
+                when r.unread
+                  button press=markRead(r.id) class=BtnGhost
+                    text "Mark read"
+              text `${r.author} · requested ${r.age}` class=Muted

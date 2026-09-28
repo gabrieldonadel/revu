@@ -1,38 +1,22 @@
 # revu
 
-A macOS menu bar app for reviewing GitHub pull requests, built on
-[Exact](https://github.com/expo/exact) (Contract UI, AppKit host) with an
+A macOS app for reviewing GitHub pull requests, built on
+[Exact2](https://github.com/ccheever/exact2) with an
 [LLP](https://github.com/ccheever/llp) design corpus in `llp/`.
 
-Two processes (LLP 0001):
+- **`revu-app/`** — the Exact2 app (`app.contract` UI, `app.ts` data: device-flow
+  sign-in, GitHub polling, Keychain token, SQLite seen-state). Windowed; the
+  menu bar item and notifications are capability asks (LLP 0003).
+- **`sidecar/`** — Bun daemon for the AI-review runner (M5).
 
-- **app** (`src/`) — tray item, native menu, window, notifications, Keychain.
-- **sidecar** (`sidecar/`) — Bun daemon on `127.0.0.1:47831`: GitHub polling,
-  SQLite state, later the AI review runner.
+## Run
 
-## Run (development)
-
-```sh
-bun install                      # links @exact/* from the checkout named in exact.links.json
-bun run sidecar:dev              # terminal 1 — the daemon
-EXACT_MAC_APP=/path/to/ExactAppMac.app bun run dev:mac   # terminal 2 — dev server + host
-```
-
-The host must be built from an Exact checkout that carries LLP 0570
-(desktop notifications) — today that is PR expo/exact#79. `exact.links.json`
-points at that checkout.
-
-Sign in from the window (device flow, LLP 0002); the token goes to the
-Keychain and is handed to the sidecar per session.
-
-## Config
-
-`revu.config.json` — OAuth client id (not a secret), scopes, poll interval,
-sidecar port. No secrets on disk anywhere.
-
-## Verify
+Requires a sibling `../exact2` checkout and its prerequisites (Bun 1.4.2,
+Rust 1.97, the vanilla Hermes engine built by a sibling `../ibex`).
 
 ```sh
-bun run typecheck
-bun run sidecar:typecheck
+bun run app:web      # the web dev loop
+bun run app:mac      # build and launch on this Mac
 ```
+
+Sign in from the window (device flow, LLP 0002). Config: `revu.config.json`.

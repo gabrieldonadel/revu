@@ -5,7 +5,7 @@
 **Systems:** App, Sidecar, GitHub
 **Author:** Gabriel Donadel Dall'Agnol / Claude
 **Date:** 2026-09-28
-**Revised:** 2026-09-28 (r1)
+**Revised:** 2026-09-28 (r2 — Exact2: polling, the token and seen-state move into `app.ts`; the sidecar keeps only the AI-review runner) 2026-09-28 (r1)
 **Related:** LLP 0000, LLP 0002, LLP 0003, expo/exact LLP 0570
 
 ## Summary
@@ -15,6 +15,12 @@ processes, so anything that needs `git`, the Claude Agent SDK, or a long-lived
 poller lives in the sidecar. The two talk over loopback HTTP and a WebSocket.
 
 ## Sidecar split
+
+**r2 (Exact2).** Exact2's `app.ts` has `net.fetch <origin>` grants, a
+Keychain-backed secret store, and SQLite. Everything below that is GitHub
+polling, the token, and seen-state now lives in the app; the sidecar is only
+the AI-review runner (`git` worktrees plus an agent runtime), which an app
+still cannot host. The transport section applies to that runner only.
 
 Exact's JS surface has no subprocess API. The AI review needs `git` worktrees
 and an agent runtime; GitHub polling should outlive the window. Both belong in

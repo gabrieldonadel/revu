@@ -1,7 +1,0 @@
-{
-  "version": 1,
-  "remoteDataCollection": false,
-  "dataShared": false,
-  "localDiagnosticsOnly": true,
-  "note": "Update through the Exact observability policy generator before enabling remote upload, vitals, invariants, or content capture."
-}
