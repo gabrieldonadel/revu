@@ -7,6 +7,7 @@ import type { ServerWebSocket } from 'bun';
 import { loadConfig } from './config.ts';
 import { closeMissing, getMeta, listPending, markSeen, openDb, setMeta, upsertPr, type PullRequestRow } from './db.ts';
 import { GitHubClient, pollDeviceFlow, startDeviceFlow, type ReviewRequest } from './github.ts';
+import { getJob, listJobs, listSkills, startReview, type ReviewRequest as ReviewJobRequest, type Runner } from './review.ts';
 
 const config = loadConfig();
 const db = openDb();
@@ -26,7 +27,17 @@ let lastPollError: string | null = null;
 type Event =
   | { type: 'snapshot'; login: string | null; prs: PullRequestRow[]; lastPollAt: string | null; lastPollError: string | null }
   | { type: 'review_requested'; pr: PullRequestRow }
-  | { type: 'auth'; login: string | null };
+  | { type: 'auth'; login: string | null }
+  | { type: 'review'; job: ReturnType<typeof getJob> };
+
+// @ref LLP 0004 — the runner is undecided; until it is, a review fails loudly
+// rather than pretending. Replace with the SDK or `claude -p` runner.
+const runner: Runner = {
+  name: 'unconfigured',
+  async run() {
+    throw new Error('no AI-review runner configured (LLP 0004 undecided)');
+  },
+};
 
 const sockets = new Set<ServerWebSocket<undefined>>();
 
@@ -166,6 +177,30 @@ const server = Bun.serve<undefined>({
       if (!client) return json({ error: 'not authenticated' }, 401);
       await pollOnce();
       return json(snapshot());
+    }
+
+    if (request.method === 'GET' && path === '/skills') {
+      return json(listSkills());
+    }
+
+    if (request.method === 'GET' && path === '/reviews') {
+      return json(listJobs());
+    }
+
+    if (request.method === 'POST' && path === '/reviews') {
+      if (!token) return json({ error: 'not authenticated' }, 401);
+      const body = (await request.json()) as ReviewJobRequest;
+      if (!body?.repo || !body?.number || !body?.headSha || !body?.baseSha) {
+        return json({ error: 'repo, number, baseSha and headSha are required' }, 400);
+      }
+      const job = startReview(body, token, runner, (j) => broadcast({ type: 'review', job: j }));
+      return json(job, 202);
+    }
+
+    const review = path.match(/^\/reviews\/([^/]+)$/);
+    if (request.method === 'GET' && review) {
+      const job = getJob(decodeURIComponent(review[1]!));
+      return job ? json(job) : json({ error: 'not found' }, 404);
     }
 
     const seen = path.match(/^\/prs\/(.+)\/seen$/);
