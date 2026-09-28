@@ -75,3 +75,12 @@ secrets live in it or anywhere else on disk; see LLP 0002.
 
 - Sidecar lifecycle: `launchd` LaunchAgent with `KeepAlive` for the packaged
   app; `bun run sidecar:dev` during development. Not built yet.
+
+## Open questions (r2, 2026-09-28)
+
+- On the standalone macOS host the `polledAt` stamp (`new Date(now)` from
+  Contract's `now()`) lags wall-clock by more than an hour; under the agent
+  driver `now()` is the seekable clock from 0 by design. Establish what
+  `now()` means in a real launch (Session.swift `setTime(epochAtZero:)`) before
+  showing absolute times; relative ages are unaffected.
+
