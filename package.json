@@ -14,7 +14,8 @@
     "setup-mcp": "bun run node_modules/@exact/devtools/src/scripts/setup-mcp.ts",
     "sidecar": "bun run sidecar/src/index.ts",
     "sidecar:dev": "bun --watch run sidecar/src/index.ts",
-    "sidecar:typecheck": "bunx tsc --noEmit -p sidecar/tsconfig.json"
+    "sidecar:typecheck": "bunx tsc --noEmit -p sidecar/tsconfig.json",
+    "dev:mac": "exact run macos --app \"${EXACT_MAC_APP:?set EXACT_MAC_APP to a built ExactAppMac.app}\" --port 5814"
   },
   "dependencies": {
     "react": "^19.2.3",
