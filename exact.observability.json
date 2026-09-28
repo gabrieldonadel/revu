@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/@exact/observability/schemas/app-observability-config-v1.schema.json",
+  "version": 1,
+  "policyEpoch": 1,
+  "switches": {
+    "localRetention": true,
+    "remoteUpload": false,
+    "vitalsSampling": false,
+    "invariantChecking": false,
+    "contentCapture": false
+  },
+  "endUserConsentRequired": ["remoteUpload", "vitalsSampling", "invariantChecking", "contentCapture"],
+  "disclosureFiles": {
+    "apple": "privacy/PrivacyInfo.xcprivacy",
+    "play": "privacy/play-data-safety.json"
+  }
+}

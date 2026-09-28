@@ -1,0 +1,12 @@
+{
+  "@exact/adapter-node": "../../.config/tuft/sessions/1790522706.585869/worktrees/exact/packages/exact-adapter-node",
+  "@exact/contract": "../../.config/tuft/sessions/1790522706.585869/worktrees/exact/packages/exact-contract",
+  "@exact/core": "../../.config/tuft/sessions/1790522706.585869/worktrees/exact/packages/exact-core",
+  "@exact/devtools": "../../.config/tuft/sessions/1790522706.585869/worktrees/exact/packages/exact-devtools",
+  "@exact/facet-contract": "../../.config/tuft/sessions/1790522706.585869/worktrees/exact/packages/exact-facet-contract",
+  "@exact/observability": "../../.config/tuft/sessions/1790522706.585869/worktrees/exact/packages/exact-observability",
+  "@exact/renderer": "../../.config/tuft/sessions/1790522706.585869/worktrees/exact/packages/exact-renderer",
+  "@exact/router": "../../.config/tuft/sessions/1790522706.585869/worktrees/exact/packages/exact-router",
+  "@exact/server": "../../.config/tuft/sessions/1790522706.585869/worktrees/exact/packages/exact-server",
+  "@exact/runtime": "../../.config/tuft/sessions/1790522706.585869/worktrees/exact/js"
+}

@@ -1,0 +1,37 @@
+// The `/` route, scaffolded by `exact new` (LLP 0160, ENG-22451).
+// Contract is Exact's default UI framework: state, actions, and the view
+// live in one indent-structured file, and the `contract` block declares
+// behavior the runtime (and agents) can check against the rendered tree.
+
+use theme from "@exact/facet-contract"
+use FacetButton from "@exact/facet-contract/components/button.contract"
+
+component HomeRoute
+  state count = 0
+
+  derive doubled = count * 2
+
+  action increment writes count
+    count = count + 1
+
+  action decrement writes count
+    count = count - 1
+
+  contract
+    has text "Exact Counter"
+    has button "Up"
+    has button "Down"
+    press button "Up" -> increment
+    press button "Down" -> decrement
+    has node testId="about-link"
+
+  view
+    column gap=theme.spacing.s4 padding=theme.spacing.s6 maxWidth=480 alignSelf="center" width="100%" background=theme.color.background.default
+      text "Exact Counter" size=theme.type.small.fontSize weight=theme.type.small.fontWeight letterSpacing=theme.type.small.letterSpacing color=theme.color.text.link
+      text `Count: ${count}` size=theme.type.h2.fontSize weight=theme.type.h2.fontWeight color=theme.color.text.default testId="counter-value"
+      text `Doubled: ${doubled}` size=theme.type.p.fontSize color=theme.color.text.secondary testId="counter-doubled"
+      row gap=theme.spacing.s2
+        FacetButton(label="Up", press=increment, testId="increment")
+        FacetButton(label="Down", variant="secondary", press=decrement, testId="decrement")
+      link href="/about" label="About this app" testId="about-link"
+        text "About this app" size=theme.type.small.fontSize weight=theme.type.small.fontWeight color=theme.color.text.link

@@ -1,0 +1,9 @@
+{
+  "componentDir": "src/facet/components",
+  "framework": "contract",
+  "platforms": ["ios", "web"],
+  "aliases": {
+    "@exact/contract": "@exact/contract",
+    "@exact/facet-contract": "@exact/facet-contract"
+  }
+}

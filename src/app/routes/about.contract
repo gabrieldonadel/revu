@@ -1,0 +1,17 @@
+// The `/about` route. Adding a screen is adding one file here and listing
+// its logical path in src/app/routes.profiles.ts, then re-running
+// `bun run generate:routes` (dev/build run it automatically at startup).
+
+use theme from "@exact/facet-contract"
+
+component AboutRoute
+  contract
+    has text "About"
+    has node testId="home-link"
+
+  view
+    column gap=theme.spacing.s4 padding=theme.spacing.s6 maxWidth=480 alignSelf="center" width="100%" background=theme.color.background.default
+      text "About" size=theme.type.h3.fontSize weight=theme.type.h3.fontWeight color=theme.color.text.default
+      text "This app is routed by the Exact file router: every file under src/app/routes/ is a screen." size=theme.type.p.fontSize color=theme.color.text.secondary
+      link href="/" label="Back home" testId="home-link"
+        text "Back home" size=theme.type.small.fontSize weight=theme.type.small.fontWeight color=theme.color.text.link
