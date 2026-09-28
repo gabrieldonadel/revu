@@ -35,3 +35,13 @@ to the app **once**; the app stores it in the Keychain via
 
 A GitHub App with fine-grained permissions would narrow `repo`. It needs an
 installation per organization, which is more setup than this tool wants today.
+
+## Open question (2026-09-28)
+
+On the real macOS host the first grant poll after a fresh device code once
+answered `incorrect_device_code`; the next poll answered `authorization_pending`
+and the flow continued. Under the agent driver (seekable clock from 0) every
+poll is `pending`. Not yet explained; the app survives it. Investigate whether
+the first tick can observe a stale `device` slot across the mutation's
+`refreshes session`.
+
