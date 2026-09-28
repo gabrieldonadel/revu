@@ -184,9 +184,10 @@ async function reviewRequests(store: Store, storage: Storage, login: string): Pr
       for (const r of reviews) {
         await db.execute('INSERT OR IGNORE INTO prs (id, first_seen_at, seen) VALUES (?, ?, 0)', [r.id, now]);
       }
+      // Rows are positional (SQLValue[]), in SELECT order.
       const rows = await db.query('SELECT id, seen FROM prs');
       const seen = new Map<string, boolean>();
-      for (const row of rows.rows as Array<Record<string, unknown>>) seen.set(String(row.id), Number(row.seen) === 1);
+      for (const row of rows.rows) seen.set(String(row[0]), Number(row[1]) === 1);
       for (const r of reviews) r.unread = !(seen.get(r.id) ?? false);
     });
   } catch {
