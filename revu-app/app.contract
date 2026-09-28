@@ -6,6 +6,9 @@ routes nav
   tab home "/"
   notfound
 
+shape Time
+  epochAtZero: number
+
 shape Session
   signedIn: bool
   login: string
@@ -69,6 +72,8 @@ component Revu
   state tick = 0
   state nowMs = 0
 
+  // @ref exact2 LLP 1027.000.000 — the date is a host fact; now() is ms since launch.
+  resource time = exactTime() as shape Time
   resource session = currentSession() as shape Session
   resource inbox = reviewRequests(session.login, nowMs) as shape Inbox
 
@@ -81,7 +86,7 @@ component Revu
   derive granted = match grant { case some(g) => g.status == "ok", case none => false }
 
   action startSignIn writes device, grant, nowMs
-    nowMs = now()
+    nowMs = time.epochAtZero + now()
     grant = none
     send device = deviceStart(nowMs)
   action cancelSignIn writes device, grant
@@ -94,13 +99,13 @@ component Revu
   action markRead(id: string) writes seen
     send seen = markSeen(id)
   action refreshNow writes nowMs
-    nowMs = now()
+    nowMs = time.epochAtZero + now()
     refresh inbox
   // One 5s clock: while a device code is out and not yet granted, poll the
   // grant; once signed in, refresh the inbox every 12th tick (60s).
   action clock writes tick, grant, nowMs
     tick = tick + 1
-    nowMs = now()
+    nowMs = time.epochAtZero + now()
     if signedIn
       if tick % 12 == 0
         refresh inbox
