@@ -20,6 +20,7 @@ import { createFileRouter } from '@exact/router/router';
 
 import { appRouteModules } from './app/routes.runtime.native.core.js';
 import { appEnvironment } from './app-environment.js';
+import { bootRevu } from './revu/boot.ts';
 
 type StarterNativeGlobal = typeof globalThis & {
   __exactHandleLinkHref?: (href: string) => void | Promise<void>;
@@ -95,9 +96,16 @@ async function mountApp(): Promise<void> {
   };
 }
 
-void mountApp().catch((error: unknown) => {
-  console.error('[ExactStarter] native mount failed', error);
-});
+void mountApp()
+  .then(() => {
+    // revu: tray, notifications, sidecar link — macOS only (LLP 0000).
+    if (getPlatform() === 'mac') {
+      bootRevu();
+    }
+  })
+  .catch((error: unknown) => {
+    console.error('[ExactStarter] native mount failed', error);
+  });
 
 // HMR (ENG-24639): the native module pipeline strips `import.meta.hot`, so
 // this block is inert on device — native reloads ride the host pipeline, and

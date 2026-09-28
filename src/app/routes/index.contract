@@ -1,37 +1,72 @@
-// The `/` route, scaffolded by `exact new` (LLP 0160, ENG-22451).
-// Contract is Exact's default UI framework: state, actions, and the view
-// live in one indent-structured file, and the `contract` block declares
-// behavior the runtime (and agents) can check against the rendered tree.
+// revu — the `/` route: sign-in state and the pending review-request list.
+// Data comes from the sidecar through src/revu/view.ts; the route re-derives
+// its view model on a 2s clock (LLP 0001#transport — snapshot is truth).
 
 use theme from "@exact/facet-contract"
 use FacetButton from "@exact/facet-contract/components/button.contract"
+use getView from "../../revu/view.ts"
+use signIn from "../../revu/view.ts"
+use signOutNow from "../../revu/view.ts"
+use refreshNow from "../../revu/view.ts"
+use markRead from "../../revu/view.ts"
+use now from "../../revu/view.ts"
 
 component HomeRoute
-  state count = 0
+  state tick = 0
 
-  derive doubled = count * 2
+  derive view = getView(tick)
 
-  action increment writes count
-    count = count + 1
+  action refresh writes tick
+    tick = now()
+  action startSignIn
+    signIn()
+  action doSignOut
+    signOutNow()
+  action pollNow
+    refreshNow()
+  action read(id)
+    markRead(id)
 
-  action decrement writes count
-    count = count - 1
+  task clock mount
+    every(2000, refresh)
 
   contract
-    has text "Exact Counter"
-    has button "Up"
-    has button "Down"
-    press button "Up" -> increment
-    press button "Down" -> decrement
-    has node testId="about-link"
+    has text "revu"
+    when view.phase == "signed_out" then has button "Sign in with GitHub"
+    when view.phase == "signed_in" then has button "Refresh"
 
   view
-    column gap=theme.spacing.s4 padding=theme.spacing.s6 maxWidth=480 alignSelf="center" width="100%" background=theme.color.background.default
-      text "Exact Counter" size=theme.type.small.fontSize weight=theme.type.small.fontWeight letterSpacing=theme.type.small.letterSpacing color=theme.color.text.link
-      text `Count: ${count}` size=theme.type.h2.fontSize weight=theme.type.h2.fontWeight color=theme.color.text.default testId="counter-value"
-      text `Doubled: ${doubled}` size=theme.type.p.fontSize color=theme.color.text.secondary testId="counter-doubled"
-      row gap=theme.spacing.s2
-        FacetButton(label="Up", press=increment, testId="increment")
-        FacetButton(label="Down", variant="secondary", press=decrement, testId="decrement")
-      link href="/about" label="About this app" testId="about-link"
-        text "About this app" size=theme.type.small.fontSize weight=theme.type.small.fontWeight color=theme.color.text.link
+    column gap=theme.spacing.s4 padding=theme.spacing.s6 maxWidth=720 alignSelf="center" width="100%" background=theme.color.background.default
+      row justify="space-between" align="center" width="100%"
+        text "revu" size=theme.type.h2.fontSize weight=theme.type.h2.fontWeight color=theme.color.text.default testId="title"
+        text view.connected ? `${view.unread} unread · ${view.total} pending` : "sidecar offline" size=theme.type.small.fontSize color=theme.color.text.secondary testId="summary"
+
+      when view.phase == "signed_out"
+        column gap=theme.spacing.s2
+          text "Sign in to see the pull requests waiting for your review." size=theme.type.p.fontSize color=theme.color.text.secondary
+          FacetButton(label="Sign in with GitHub", press=startSignIn, testId="sign-in")
+      when view.phase == "device_code" || view.phase == "authorizing"
+        column gap=theme.spacing.s2 testId="device-code"
+          text "Enter this code on GitHub:" size=theme.type.p.fontSize color=theme.color.text.secondary
+          text view.userCode size=theme.type.h1.fontSize weight=theme.type.h1.fontWeight color=theme.color.text.default testId="user-code"
+          link href=view.verificationUri label="Open github.com/login/device" testId="verification-link"
+            text view.verificationUri size=theme.type.small.fontSize color=theme.color.text.link
+      when view.phase == "signed_in"
+        column gap=theme.spacing.s3
+          row gap=theme.spacing.s2 align="center"
+            text `Signed in as ${view.login} · last poll ${view.lastPoll}` size=theme.type.small.fontSize color=theme.color.text.secondary testId="signed-in-as"
+            FacetButton(label="Refresh", variant="secondary", press=pollNow, testId="refresh")
+            FacetButton(label="Sign out", variant="ghost", press=doSignOut, testId="sign-out")
+          when view.total == 0
+            text "No pending review requests." size=theme.type.p.fontSize color=theme.color.text.secondary testId="empty"
+          each pr in view.prs key=pr.id
+            column gap=2 padding=theme.spacing.s3 radius=theme.radius.md background=theme.color.background.subtle width="100%" testId=`pr-${pr.id}`
+              row justify="space-between" align="center" width="100%"
+                link href=pr.url label=pr.title
+                  text `${pr.unread ? "● " : ""}${pr.repo}#${pr.number} — ${pr.title}` size=theme.type.p.fontSize weight=pr.unread ? 600 : 400 color=theme.color.text.default
+                when pr.unread
+                  FacetButton(label="Mark read", variant="ghost", press=read(pr.id))
+              text `${pr.author} · requested ${pr.age}` size=theme.type.small.fontSize color=theme.color.text.tertiary
+
+      when view.error != ""
+        text view.error size=theme.type.small.fontSize color=theme.color.text.danger testId="error"
