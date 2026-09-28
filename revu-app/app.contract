@@ -108,7 +108,7 @@ component Revu
       match device
         case some(d)
           if d.ok and not granted
-            send grant = devicePoll(d.deviceCode)
+            send grant = devicePoll(d.deviceCode, nowMs)
         case none
           tick = tick
 

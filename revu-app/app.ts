@@ -104,8 +104,16 @@ async function deviceStart(now: number): Promise<DeviceCode> {
   }
 }
 
-async function devicePoll(store: Store, deviceCode: string): Promise<Grant> {
+// GitHub's device flow asks for at least `interval` seconds between polls and
+// answers `slow_down` (+5 s) when pushed; the Contract clock is a fixed 5 s, so
+// the source itself skips polls until the next allowed time.
+const pollNotBefore = new Map<string, number>();
+
+async function devicePoll(store: Store, deviceCode: string, now: number): Promise<Grant> {
   const base: Grant = { stamp: ++stamp, status: 'pending', login: '', error: '' };
+  const notBefore = pollNotBefore.get(deviceCode) ?? 0;
+  if (now < notBefore) return base;
+  pollNotBefore.set(deviceCode, now + 5000);
   try {
     const res = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
@@ -120,7 +128,9 @@ async function devicePoll(store: Store, deviceCode: string): Promise<Grant> {
     }
     switch (body.error) {
       case 'authorization_pending':
+        return base;
       case 'slow_down':
+        pollNotBefore.set(deviceCode, now + Number(body.interval ?? 10) * 1000);
         return base;
       case 'expired_token':
         return { ...base, status: 'expired', error: 'The code expired; start again.' };
@@ -218,7 +228,7 @@ const sources: Sources = {
   currentSession: (_, store) => currentSession(store),
   reviewRequests: ([login, now], store, storage) => reviewRequests(store, storage, String(login ?? ''), Number(now)),
   deviceStart: ([now]) => deviceStart(Number(now)),
-  devicePoll: ([code], store) => devicePoll(store, String(code)),
+  devicePoll: ([code, now], store) => devicePoll(store, String(code), Number(now)),
   signOut: (_, store) => {
     store.forget('github.token');
     return { ...signedOut };
