@@ -10,6 +10,8 @@ export const grants = [
   'net.fetch https://github.com',
   'secret.keep github.token',
   'sqlite.open app:/data/revu.db',
+  // The AI-review sidecar on loopback (LLP 0001 §Transport, LLP 0004).
+  'net.fetch http://127.0.0.1:47831',
 ].join('\n');
 
 const CLIENT_ID = 'Ov23li3weoDK9jZ4ycnp';
@@ -224,7 +226,21 @@ async function markSeen(storage: Storage, id: string): Promise<Result<'markSeen'
   return { stamp: ++stamp, id };
 }
 
+type SidecarStatus = Result<'sidecarStatus'>;
+
+async function sidecarStatus(): Promise<SidecarStatus> {
+  try {
+    const res = await fetch('http://127.0.0.1:47831/health');
+    if (!res.ok) return { reachable: false, runner: '', detail: `sidecar answered ${res.status}` };
+    const body = (await res.json()) as Json;
+    return { reachable: true, runner: String(body.runner ?? 'unconfigured'), detail: '' };
+  } catch (e) {
+    return { reachable: false, runner: '', detail: message(e) };
+  }
+}
+
 const sources: Sources = {
+  sidecarStatus: () => sidecarStatus(),
   currentSession: (_, store) => currentSession(store),
   reviewRequests: ([login, now], store, storage) => reviewRequests(store, storage, String(login ?? ''), Number(now)),
   deviceStart: ([now]) => deviceStart(Number(now)),

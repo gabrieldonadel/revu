@@ -49,6 +49,11 @@ shape Inbox
   error: string
   reviews: list<Review>
 
+shape SidecarStatus
+  reachable: bool
+  runner: string
+  detail: string
+
 shape Seen
   stamp: number
   id: string
@@ -75,6 +80,7 @@ component Revu
   // @ref exact2 LLP 1027.000.000 — the date is a host fact; now() is ms since launch.
   resource time = exactTime() as shape Time
   resource session = currentSession() as shape Session
+  resource sidecar = sidecarStatus() as shape SidecarStatus
   resource inbox = reviewRequests(session.login, nowMs) as shape Inbox
 
   mutation device as shape DeviceCode refreshes session
@@ -161,6 +167,7 @@ component Revu
               text "Sign out"
           when inbox.error != ""
             text inbox.error color="#b91c1c" font-size=13 testId="error"
+          text sidecar.reachable ? `AI review: sidecar ready · runner ${sidecar.runner}` : "AI review: sidecar offline" class=Muted testId="sidecar-status"
           when inbox.ready and inbox.total == 0
             text "No pending review requests." class=Muted testId="empty"
           each r in inbox.reviews key=r.id

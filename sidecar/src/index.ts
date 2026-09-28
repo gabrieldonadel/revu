@@ -136,7 +136,7 @@ const server = Bun.serve<undefined>({
     if (path === '/events' && srv.upgrade(request, { data: undefined })) return undefined as unknown as Response;
 
     if (request.method === 'GET' && path === '/health') {
-      return json({ ok: true, login, authenticated: token !== null, lastPollAt, lastPollError, port });
+      return json({ ok: true, login, authenticated: token !== null, lastPollAt, lastPollError, port, runner: runner.name });
     }
 
     if (request.method === 'POST' && path === '/auth/device/start') {
