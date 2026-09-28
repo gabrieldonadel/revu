@@ -78,6 +78,3 @@ export function markRead(id: string): void {
   void sidecar.markSeen(id, true);
 }
 
-export function now(): number {
-  return Date.now();
-}

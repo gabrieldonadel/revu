@@ -15,8 +15,8 @@
       "version": 1,
       "schemaVersion": 1,
       "routeId": "app/index.contract",
-      "routeGraphDigest": "sha256:8b44012d51e64bf65aea73042b9a7e5722c0e41bbd1ab2331b5d762ef6a314aa",
-      "sourceVersion": "sha256:8b44012d51e64bf65aea73042b9a7e5722c0e41bbd1ab2331b5d762ef6a314aa",
+      "routeGraphDigest": "sha256:211e44bc86f658cb61c1b67396d3528b6c6141456992ddfccc3fd9623074f3cd",
+      "sourceVersion": "sha256:211e44bc86f658cb61c1b67396d3528b6c6141456992ddfccc3fd9623074f3cd",
       "buildFingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       "generatedAdapterVersion": "exact-contract-router-chain-v1"
     }

@@ -1,6 +1,6 @@
 // @ref LLP 0000#architecture — the menu bar item is the primary surface;
 // the native NSMenu is the list until the tray popover exists upstream.
-import { Exact, type MenuItemConfig, type TrayHandle } from 'exact';
+import { Exact, type MenuItemConfig, type TrayHandle } from '@exact/runtime/src/desktop-platform.ts';
 
 import { getAuthState, onAuthChange } from './auth.ts';
 import { getSnapshot, onEvent, sidecar, type PullRequest } from './sidecar-client.ts';
@@ -68,7 +68,8 @@ function buildMenu(): MenuItemConfig[] {
 function refresh(): void {
   if (!tray) return;
   const unread = getSnapshot().prs.filter((pr) => !pr.seen).length;
-  tray.setTitle(unread > 0 ? String(unread) : '');
+  // No icon asset yet: a text title keeps the status item from collapsing to zero width.
+  tray.setTitle(unread > 0 ? `PR ${unread}` : 'PR');
   tray.setTooltip(unread > 0 ? `${unread} review request${unread === 1 ? '' : 's'} waiting` : 'revu — no pending reviews');
   tray.setMenu(buildMenu());
 }
@@ -81,7 +82,7 @@ export async function installTray(): Promise<void> {
     menuOnLeftClick: true,
     menu: buildMenu(),
   });
-  tray.setTitle('');
+  tray.setTitle('PR');
   onEvent(() => refresh());
   onAuthChange(() => refresh());
   refresh();

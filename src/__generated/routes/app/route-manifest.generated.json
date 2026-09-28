@@ -46,7 +46,7 @@
         "tier": "contract",
         "module": "index.contract",
         "meta": null,
-        "sourceVersion": "3ee8646c5d64f2e6"
+        "sourceVersion": "ebfd32600547bac3"
       },
       "platforms": [
         "unsuffixed"

@@ -1,6 +1,6 @@
 // @ref LLP 0003 — new review requests raise a native notification with Open
 // and Mark read; expo/exact LLP 0570 provides the host.
-import { Exact } from 'exact';
+import { Exact } from '@exact/runtime/src/desktop-platform.ts';
 
 import { onEvent, sidecar, type PullRequest } from './sidecar-client.ts';
 

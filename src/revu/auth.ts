@@ -1,6 +1,6 @@
 // @ref LLP 0002#device-flow — the app owns the token: Keychain in, sidecar
 // gets it per session, never written to disk by anyone.
-import { Exact } from 'exact';
+import { Exact } from '@exact/runtime/src/desktop-platform.ts';
 
 import { sidecar, type DeviceCodeStart } from './sidecar-client.ts';
 

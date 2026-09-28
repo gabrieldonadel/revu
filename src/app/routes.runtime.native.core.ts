@@ -19,4 +19,4 @@ export const appRouteModules = {
 export const appRouteManifest =
 [] as const satisfies readonly RouteManifestRuntimeRowV1[];
 
-export const routeRegistryGenerationStamp = "sha256:dceb8a45aabb88f9af82eabfea3b195a34439501e76e93df17fdc5da93f638fc";
+export const routeRegistryGenerationStamp = "sha256:899ea30701e462689d118012f1d47e19c25b6be528823df3e13644b02ce18e43";

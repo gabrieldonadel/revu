@@ -9,7 +9,6 @@ use signIn from "../../revu/view.ts"
 use signOutNow from "../../revu/view.ts"
 use refreshNow from "../../revu/view.ts"
 use markRead from "../../revu/view.ts"
-use now from "../../revu/view.ts"
 
 component HomeRoute
   state tick = 0
