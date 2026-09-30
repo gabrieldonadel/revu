@@ -1,7 +1,7 @@
 // @ref LLP 0001#sidecar-split — the one thing the app cannot do: run git and
 // an agent. A review is a job: check the PR out into a worktree, load the
 // selected skill, run the runner, stream its output, keep the result.
-import { mkdirSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { paths } from './config.ts';
@@ -14,25 +14,41 @@ export interface ReviewRequest {
   baseSha: string;
   headSha: string;
   headRef: string;
-  skill?: string; // skill name under the skills directories; default 'pr-review'
+  skill?: string; // skill name under the skills directories; default 'deep-code-review'
+  agent?: string; // 'claude' | 'codex' — the local CLI that runs it (LLP 0004)
+  url?: string; // the PR's html_url, for the skill's `gh` calls
+}
+
+/** The skill's structured result (deep-code-review's JSON), once the runner has written it. */
+export interface ReviewResult {
+  pr_url: string;
+  owner: string;
+  repo: string;
+  pull_number: number;
+  summary: string;
+  verdict: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
+  comments: Array<{ path: string; line: number; side: 'LEFT' | 'RIGHT'; body: string; severity: string; line_content?: string }>;
 }
 
 export interface ReviewJob {
   id: string;
   request: ReviewRequest;
-  status: 'queued' | 'checking-out' | 'running' | 'done' | 'failed';
+  status: 'queued' | 'preparing' | 'running' | 'done' | 'failed';
   startedAt: string;
   finishedAt: string | null;
-  output: string; // streamed markdown so far
+  output: string; // streamed progress so far
   error: string | null;
-  worktree: string | null;
+  worktree: string | null; // the scratch directory — never a checkout
+  result: ReviewResult | null; // the skill's JSON, read after the run
+  resultPath: string | null;
+  posted: { reviewId: number; url: string; count: number } | null;
 }
 
 /** What a runner must provide; the choice of runner is LLP 0004's decision. */
 export interface Runner {
   name: string;
   /** Runs the review in `worktree`, calling `onChunk` as output arrives; resolves with the final text. */
-  run(input: { worktree: string; prompt: string; skill: string; signal: AbortSignal; onChunk: (text: string) => void }): Promise<string>;
+  run(input: { worktree: string; prompt: string; skill: string; token: string; signal: AbortSignal; onChunk: (text: string) => void }): Promise<string>;
 }
 
 const skillDirs = [
@@ -74,7 +90,9 @@ export function writeSkill(name: string, content: string): { name: string; path:
   return { name, path };
 }
 
-export function loadSkill(name = 'pr-review'): string {
+export const DEFAULT_SKILL = 'deep-code-review';
+
+export function loadSkill(name = DEFAULT_SKILL): string {
   const skill = listSkills().find((s) => s.name === name);
   if (!skill) throw new Error(`no skill named ${name} (looked in ${skillDirs.join(', ')})`);
   return readFileSync(skill.path, 'utf8');
@@ -89,54 +107,67 @@ async function sh(cmd: string[], cwd: string, env: Record<string, string> = {}):
 }
 
 /**
- * One bare mirror per repository under the cache, one worktree per PR head.
- * The agent sees the whole tree, not just the diff — the LLP-aware skill
- * needs to follow `@ref`s into `llp/`.
+ * The review never checks the user's code out (ruled 2026-09-30): the agent
+ * works in an empty scratch directory and reads the pull request through
+ * `gh` — its diff, its files, its metadata — nothing is cloned.
  */
-export async function checkout(request: ReviewRequest, token: string): Promise<string> {
-  const cache = resolve(paths.appSupport, '../../Caches/revu/repos');
-  const mirror = resolve(cache, `${request.repo}.git`);
-  const worktree = resolve(cache, 'worktrees', request.repo.replace('/', '__'), `pr-${request.number}`);
-  mkdirSync(resolve(cache, 'worktrees', request.repo.replace('/', '__')), { recursive: true });
-  const remote = `https://x-access-token:${token}@github.com/${request.repo}.git`;
-  const env = { GIT_TERMINAL_PROMPT: '0' };
+export function scratchDir(request: ReviewRequest): string {
+  const dir = resolve(paths.appSupport, '../../Caches/revu/scratch', `${request.repo.replace('/', '__')}-${request.number}`);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
 
-  if (!existsSync(mirror)) {
-    mkdirSync(cache, { recursive: true });
-    await sh(['git', 'clone', '--bare', '--filter=blob:none', remote, mirror], cache, env);
-  } else {
-    await sh(['git', '--git-dir', mirror, 'remote', 'set-url', 'origin', remote], cache, env);
-  }
-  // Fetch the PR head and base explicitly; refs/pull/N/head exists on GitHub.
-  await sh(['git', '--git-dir', mirror, 'fetch', '--force', 'origin', `refs/pull/${request.number}/head:refs/revu/pr/${request.number}`, request.baseSha], cache, env);
-
-  if (existsSync(worktree)) {
-    await sh(['git', '--git-dir', mirror, 'worktree', 'remove', '--force', worktree], cache, env).catch(() => undefined);
-  }
-  await sh(['git', '--git-dir', mirror, 'worktree', 'add', '--detach', worktree, request.headSha], cache, env);
-  // Never leave the token in the worktree's remote config.
-  await sh(['git', '--git-dir', mirror, 'remote', 'set-url', 'origin', `https://github.com/${request.repo}.git`], cache, env);
-  return worktree;
+/** Where the deep-code-review skill writes its JSON. */
+export function resultPath(request: ReviewRequest): string {
+  return `/tmp/deep-code-review-${request.number}.json`;
 }
 
 export function buildPrompt(request: ReviewRequest, skill: string): string {
+  const url = request.url ?? `https://github.com/${request.repo}/pull/${request.number}`;
   return [
     skill.trim(),
     '',
     '---',
     '',
-    `# Task: review ${request.repo}#${request.number} — ${request.title}`,
+    `# Task: review ${url} — ${request.title}`,
     '',
     `Base: ${request.baseSha}`,
     `Head: ${request.headSha} (${request.headRef})`,
     '',
-    'The pull request is checked out in the current working directory at the head commit.',
-    `Diff: \`git diff ${request.baseSha}...${request.headSha}\``,
+    'Nothing is checked out locally and nothing may be cloned: read the pull request',
+    `through \`gh\` only — \`gh pr diff ${url}\`, \`gh pr view ${url}\`, and \`gh api\` for the`,
+    'contents of files you need (e.g. `gh api repos/{owner}/{repo}/contents/{path}?ref=<sha>`).',
+    'The current directory is an empty scratch directory.',
+    '',
+    `Write the findings JSON to ${resultPath(request)} exactly as the skill describes, then stop.`,
+    'Do NOT run post-review.ts and do NOT post anything to GitHub: revu previews the',
+    'comments and stages the review itself. Never clone the repository.',
     '',
     '## Description from the author',
     '',
     request.body.trim() || '(none)',
   ].join('\n');
+}
+
+/** Stage the chosen comments as a PENDING review on GitHub through the
+ *  skill's own script (`post-review.ts post`), which re-resolves each
+ *  comment's line against the live diff. Returns the review's id and URL. */
+export async function postReview(job: ReviewJob, chosen: number[], token: string): Promise<{ reviewId: number; url: string; count: number }> {
+  if (!job.result) throw new Error('nothing to post: the review has no result');
+  const skill = listSkills().find((s) => s.name === (job.request.skill ?? DEFAULT_SKILL));
+  const script = skill ? resolve(skill.path, '..', 'post-review.ts') : '';
+  if (!script || !existsSync(script)) throw new Error('this skill has no post-review.ts');
+  const comments = job.result.comments.filter((_, i) => chosen.includes(i));
+  const subset = { ...job.result, comments };
+  const file = `/tmp/revu-post-${job.request.number}-${Date.now()}.json`;
+  writeFileSync(file, JSON.stringify(subset, null, 2));
+  const env = { GITHUB_TOKEN: token, GH_TOKEN: token, PATH: [process.env.PATH, `${process.env.HOME}/.bun/bin`, '/opt/homebrew/bin', '/usr/local/bin'].filter(Boolean).join(':') };
+  const out = await sh([process.execPath, 'run', script, 'post', file], job.worktree ?? '/tmp', env);
+  const id = /review ID: (\d+)/.exec(out)?.[1];
+  if (!id) throw new Error(`post-review.ts posted nothing: ${out.trim().split('\n').slice(-3).join(' ')}`);
+  const posted = { reviewId: Number(id), url: `${job.result.pr_url}/files`, count: comments.length };
+  job.posted = posted;
+  return posted;
 }
 
 const jobs = new Map<string, ReviewJob>();
@@ -174,15 +205,19 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
     output: '',
     error: null,
     worktree: null,
+    result: null,
+    resultPath: null,
+    posted: null,
   };
   jobs.set(job.id, job);
   const controller = new AbortController();
   controllers.set(job.id, controller);
   void (async () => {
     try {
-      job.status = 'checking-out';
+      job.status = 'preparing';
       onChange(job);
-      job.worktree = await checkout(request, token);
+      try { unlinkSync(resultPath(request)); } catch { /* none yet */ }
+      job.worktree = scratchDir(request);
       job.status = 'running';
       onChange(job);
       const skill = loadSkill(request.skill);
@@ -190,7 +225,8 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
       const final = await runner.run({
         worktree: job.worktree,
         prompt,
-        skill: request.skill ?? 'pr-review',
+        skill: request.skill ?? DEFAULT_SKILL,
+        token,
         signal: controller.signal,
         onChunk: (text) => {
           job.output += text;
@@ -198,6 +234,18 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
         },
       });
       if (final && !job.output) job.output = final;
+      // The skill's JSON is the result; the transcript is only progress.
+      const path = resultPath(request);
+      job.resultPath = path;
+      if (existsSync(path)) {
+        try {
+          job.result = JSON.parse(readFileSync(path, 'utf8')) as ReviewResult;
+        } catch (e) {
+          throw new Error(`the skill's JSON at ${path} is unreadable: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      } else if ((job.status as ReviewJob['status']) !== 'failed') {
+        throw new Error(`the agent finished without writing ${path}; its last words: ${final.trim().slice(-300) || '(none)'}`);
+      }
       // A cancel may have flipped the status while the runner was running.
       if ((job.status as ReviewJob['status']) !== 'failed') job.status = 'done';
     } catch (error) {

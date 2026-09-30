@@ -6,7 +6,7 @@ source: revu default skill
 
 # pr-review
 
-Review the pull request checked out in the current worktree. The diff range,
+Review the pull request through `gh` (`gh pr diff`, `gh api …/contents/…`); nothing is checked out locally. The diff range,
 base and head SHAs, title, body, and existing review comments are provided
 in the task prompt.
 

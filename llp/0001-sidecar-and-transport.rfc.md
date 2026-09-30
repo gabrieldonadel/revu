@@ -19,10 +19,10 @@ poller lives in the sidecar. The two talk over loopback HTTP and a WebSocket.
 **r2 (Exact2).** Exact2's `app.ts` has `net.fetch <origin>` grants, a
 Keychain-backed secret store, and SQLite. Everything below that is GitHub
 polling, the token, and seen-state now lives in the app; the sidecar is only
-the AI-review runner (`git` worktrees plus an agent runtime), which an app
+the AI-review runner (a local agent CLI process), which an app
 still cannot host. The transport section applies to that runner only.
 
-Exact's JS surface has no subprocess API. The AI review needs `git` worktrees
+Exact's JS surface has no subprocess API. The AI review needs a subprocess
 and an agent runtime; GitHub polling should outlive the window. Both belong in
 an ordinary Bun process. The app stays a thin native shell: tray, windows,
 notifications, Keychain.

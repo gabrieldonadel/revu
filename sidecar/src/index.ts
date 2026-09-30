@@ -7,7 +7,8 @@ import type { ServerWebSocket } from 'bun';
 import { loadConfig } from './config.ts';
 import { closeMissing, getMeta, listPending, markSeen, openDb, setMeta, upsertPr, type PullRequestRow } from './db.ts';
 import { GitHubClient, pollDeviceFlow, startDeviceFlow, type ReviewRequest } from './github.ts';
-import { cancelJob, getJob, listJobs, listSkills, readSkill, startReview, writeSkill, type ReviewRequest as ReviewJobRequest, type Runner } from './review.ts';
+import { cancelJob, getJob, listJobs, listSkills, postReview, readSkill, startReview, writeSkill, type ReviewRequest as ReviewJobRequest } from './review.ts';
+import { availableAgents, runners, type AgentName } from './runners.ts';
 
 const config = loadConfig();
 const db = openDb();
@@ -30,14 +31,14 @@ type Event =
   | { type: 'auth'; login: string | null }
   | { type: 'review'; job: ReturnType<typeof getJob> };
 
-// @ref LLP 0004 — the runner is undecided; until it is, a review fails loudly
-// rather than pretending. Replace with the SDK or `claude -p` runner.
-const runner: Runner = {
-  name: 'unconfigured',
-  async run() {
-    throw new Error('no AI-review runner configured (LLP 0004 undecided)');
-  },
-};
+// @ref LLP 0004 — the runner is the user's local agent CLI, named per job
+// (Settings ▸ Model in the app); `claude` when the job names none.
+function runnerFor(agent: string | undefined) {
+  const name = (agent ?? 'claude') as AgentName;
+  const runner = runners[name];
+  if (!runner) throw new Error(`no such agent: ${agent}`);
+  return runner;
+}
 
 const sockets = new Set<ServerWebSocket<undefined>>();
 
@@ -136,7 +137,8 @@ const server = Bun.serve<undefined>({
     if (path === '/events' && srv.upgrade(request, { data: undefined })) return undefined as unknown as Response;
 
     if (request.method === 'GET' && path === '/health') {
-      return json({ ok: true, login, authenticated: token !== null, lastPollAt, lastPollError, port, runner: runner.name });
+      const agents = availableAgents();
+      return json({ ok: true, login, authenticated: token !== null, lastPollAt, lastPollError, port, runner: 'local-agent', agents });
     }
 
     if (request.method === 'POST' && path === '/auth/device/start') {
@@ -211,6 +213,12 @@ const server = Bun.serve<undefined>({
       if (!body?.repo || !body?.number || !body?.headSha || !body?.baseSha) {
         return json({ error: 'repo, number, baseSha and headSha are required' }, 400);
       }
+      let runner;
+      try {
+        runner = runnerFor(body.agent);
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : String(error) }, 400);
+      }
       const job = startReview(body, token, runner, (j) => broadcast({ type: 'review', job: j }));
       return json(job, 202);
     }
@@ -219,6 +227,20 @@ const server = Bun.serve<undefined>({
     if (request.method === 'GET' && review) {
       const job = getJob(decodeURIComponent(review[1]!));
       return job ? json(job) : json({ error: 'not found' }, 404);
+    }
+    const post = path.match(/^\/reviews\/([^/]+)\/post$/);
+    if (request.method === 'POST' && post) {
+      if (!token) return json({ error: 'not authenticated' }, 401);
+      const job = getJob(decodeURIComponent(post[1]!));
+      if (!job) return json({ error: 'not found' }, 404);
+      const body = (await request.json().catch(() => ({}))) as { comments?: number[] };
+      try {
+        const posted = await postReview(job, body.comments ?? [], token);
+        broadcast({ type: 'review', job });
+        return json(posted);
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+      }
     }
     if (request.method === 'DELETE' && review) {
       const job = cancelJob(decodeURIComponent(review[1]!));

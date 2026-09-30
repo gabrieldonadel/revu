@@ -20,7 +20,8 @@ const SCOPES = 'notifications repo read:user';
 const API = 'https://api.github.com';
 const SIDECAR = 'http://127.0.0.1:47831';
 const UA = 'revu/0.1 (+https://revu.donadel.dev)';
-const DEFAULT_SKILL = 'pr-review';
+const DEFAULT_SKILL = 'deep-code-review';
+const DEFAULT_AGENT = 'claude';
 
 type Store = Parameters<Answer>[2];
 type Session = Result<'currentSession'>;
@@ -28,7 +29,7 @@ type Inbox = Result<'reviewRequests'>;
 type Review = Inbox['mine'][number];
 type PrDetail = Result<'prDetail'>;
 type Job = Result<'reviewJob'>;
-type Finding = Job['findings'][number];
+type Comment = Job['comments'][number];
 type SkillSettings = Result<'skillSettings'>;
 type Rule = SkillSettings['rules'][number];
 type Json = Record<string, any>;
@@ -185,6 +186,8 @@ async function withDb<T>(storage: Storage, work: (db: Database) => Promise<T>): 
     }
     // Skill rules by repository (design 1f): first match wins, by position.
     await db.execute('CREATE TABLE IF NOT EXISTS rules (pattern TEXT PRIMARY KEY, skill TEXT NOT NULL, position INTEGER NOT NULL)');
+    // Settings (design 1f Model): the local agent that runs reviews (LLP 0004).
+    await db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
     return await work(db);
   } finally {
     await db.close();
@@ -534,9 +537,10 @@ async function startReview(store: Store, storage: Storage, id: string, skill: st
     // for that one clone and keeps it in memory only (LLP 0001 §Transport).
     const auth = await sidecar('/auth/token', { method: 'POST', body: JSON.stringify({ access_token: token }) });
     if (!auth.ok) return { stamp: ++stamp, id: '', error: `The sidecar refused the token (${auth.status}).` };
+    const agent = await readSetting(storage, 'agent', DEFAULT_AGENT);
     const res = await sidecar('/reviews', {
       method: 'POST',
-      body: JSON.stringify({ repo, number: Number(number), title: detail.title, body: detail.body, baseSha: detail.baseSha, headSha: detail.headSha, headRef: detail.headRef, skill }),
+      body: JSON.stringify({ repo, number: Number(number), title: detail.title, body: detail.body, baseSha: detail.baseSha, headSha: detail.headSha, headRef: detail.headRef, url: detail.url, skill, agent }),
     });
     const body = (await res.json()) as Json;
     if (!res.ok) return { stamp: ++stamp, id: '', error: String(body.error ?? `sidecar answered ${res.status}`) };
@@ -546,34 +550,86 @@ async function startReview(store: Store, storage: Storage, id: string, skill: st
   }
 }
 
-/** Findings are lines the skill's Output section asks for:
- *  `- [BUG] path:line — title` (or `**BUG**`), with the following indented or
- *  plain lines as the body until the next finding or heading. */
-function parseFindings(output: string): Finding[] {
-  const findings: Finding[] = [];
-  const head = /^\s*(?:[-*]\s*)?(?:\[|\*\*)?(BUG|RULE|TEST|NIT)(?:\]|\*\*)?:?\s*(?:`?([^`\s—–:-][^`\s]*?)`?\s*[—–-]\s*)?(.+)$/;
-  let current: Finding | null = null;
-  for (const raw of output.split('\n')) {
-    const m = head.exec(raw);
-    if (m) {
-      current = { index: findings.length, sev: m[1]!, loc: m[2] ?? '', title: m[3]!.trim(), body: '' };
-      findings.push(current);
-      continue;
-    }
-    if (/^\s*#/.test(raw)) { current = null; continue; }
-    if (current && raw.trim()) current.body = current.body ? `${current.body}\n${raw.trim()}` : raw.trim();
+// --- settings (Model tab) ----------------------------------------------------
+
+async function readSetting(storage: Storage, key: string, fallback: string): Promise<string> {
+  try {
+    return await withDb(storage, async (db) => {
+      const rows = await db.query('SELECT value FROM settings WHERE key = ?', [key]);
+      return rows.rows.length ? String(rows.rows[0]![0]) : fallback;
+    });
+  } catch {
+    return fallback;
   }
-  return findings;
 }
 
-function summarise(output: string): string {
-  const paragraphs = output.split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p && !/^#/.test(p) && !parseFindings(p).length);
-  return paragraphs[0] ?? '';
+async function agentSettings(storage: Storage, _stamp: number): Promise<Result<'agentSettings'>> {
+  const current = await readSetting(storage, 'agent', DEFAULT_AGENT);
+  const base = { current, claudeAvailable: false, codexAvailable: false, claudePath: '', codexPath: '' };
+  try {
+    const res = await sidecar('/health');
+    if (!res.ok) return base;
+    const agents = ((await res.json()) as Json).agents ?? {};
+    return {
+      current,
+      claudeAvailable: Boolean(agents.claude?.available),
+      codexAvailable: Boolean(agents.codex?.available),
+      claudePath: String(agents.claude?.path ?? ''),
+      codexPath: String(agents.codex?.path ?? ''),
+    };
+  } catch {
+    return base;
+  }
 }
 
-const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, step: 0, progress: 0, elapsed: '0:00', log: [], summary: '', findings: [], error: '' };
+async function setAgent(storage: Storage, name: string): Promise<Result<'setAgent'>> {
+  const agent = name === 'codex' ? 'codex' : 'claude';
+  try {
+    await withDb(storage, (db) => db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['agent', agent]));
+    return { stamp: ++stamp, ok: true };
+  } catch {
+    return { stamp: ++stamp, ok: false };
+  }
+}
 
-async function reviewJob(jobId: string, tick: number, epoch: number): Promise<Job> {
+// --- the job's result (design 1e) ---------------------------------------------
+
+/** Which comments the user keeps, per job; the skill's `nit`s start unchecked. */
+const chosen = new Map<string, Set<number>>();
+
+function chosenFor(jobId: string, comments: Json[]): Set<number> {
+  let set = chosen.get(jobId);
+  if (!set) {
+    set = new Set(comments.map((c, i) => (String(c.severity) === 'nit' ? -1 : i)).filter((i) => i >= 0));
+    chosen.set(jobId, set);
+  }
+  return set;
+}
+
+async function toggleComment(jobId: string, index: number): Promise<Result<'toggleComment'>> {
+  const set = chosen.get(jobId);
+  if (set) {
+    if (set.has(index)) set.delete(index); else set.add(index);
+  }
+  return { stamp: ++stamp };
+}
+
+async function postComments(jobId: string): Promise<Result<'postComments'>> {
+  const set = chosen.get(jobId);
+  if (!jobId || !set || set.size === 0) return { stamp: ++stamp, ok: false, url: '', count: 0, error: 'Choose at least one comment.' };
+  try {
+    const res = await sidecar(`/reviews/${encodeURIComponent(jobId)}/post`, { method: 'POST', body: JSON.stringify({ comments: [...set].sort((a, b) => a - b) }) });
+    const body = (await res.json()) as Json;
+    if (!res.ok) return { stamp: ++stamp, ok: false, url: '', count: 0, error: String(body.error ?? `sidecar answered ${res.status}`) };
+    return { stamp: ++stamp, ok: true, url: String(body.url ?? ''), count: Number(body.count ?? 0), error: '' };
+  } catch (e) {
+    return { stamp: ++stamp, ok: false, url: '', count: 0, error: `The sidecar could not be reached: ${message(e)}` };
+  }
+}
+
+const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, agent: DEFAULT_AGENT, step: 0, progress: 0, elapsed: '0:00', log: [], summary: '', verdict: '', hasResult: false, comments: [], chosenCount: 0, posted: false, postedUrl: '', postedCount: 0, error: '' };
+
+async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: number, _posted: number): Promise<Job> {
   if (!jobId) return emptyJob;
   try {
     const res = await sidecar(`/reviews/${encodeURIComponent(jobId)}`);
@@ -581,20 +637,38 @@ async function reviewJob(jobId: string, tick: number, epoch: number): Promise<Jo
     if (!res.ok) return { ...emptyJob, id: jobId, status: 'failed', error: String(body.error ?? `sidecar answered ${res.status}`) };
     const status = String(body.status ?? 'queued');
     const output = String(body.output ?? '');
-    const step = status === 'queued' ? 0 : status === 'checking-out' ? 1 : status === 'running' ? (output ? 3 : 2) : 5;
-    const progress = status === 'done' ? 100 : Math.min(95, step * 20 + (status === 'running' ? Math.min(15, output.length / 200) : 0));
+    const lines = output.split('\n').filter((l) => l.trim());
+    const writing = lines.some((l) => /writing \/tmp\/deep-code-review/.test(l));
+    const step = status === 'queued' ? 0 : status === 'preparing' ? 1 : status === 'running' ? (writing ? 4 : lines.length > 1 ? 3 : 2) : 5;
+    const progress = status === 'done' ? 100 : Math.min(95, step * 20 + (status === 'running' ? Math.min(15, lines.length) : 0));
     const now = epoch + tick * 5000;
+    const result = (body.result ?? null) as Json | null;
+    const rawComments = ((result?.comments ?? []) as Json[]);
+    const set = status === 'done' && result ? chosenFor(jobId, rawComments) : new Set<number>();
+    const comments: Comment[] = rawComments.map((c, index) => {
+      const text = String(c.body ?? '').trim();
+      const title = text.split('\n')[0]?.slice(0, 140) ?? '';
+      return { index, severity: String(c.severity ?? 'suggestion'), path: String(c.path ?? ''), line: Number(c.line ?? 0), title, body: text, chosen: set.has(index) };
+    });
+    const posted = (body.posted ?? null) as Json | null;
     return {
       ready: true,
       id: jobId,
       status,
       skill: String(body.request?.skill ?? DEFAULT_SKILL),
+      agent: String(body.request?.agent ?? DEFAULT_AGENT),
       step,
       progress,
       elapsed: elapsed(String(body.startedAt ?? ''), body.finishedAt ? String(body.finishedAt) : null, now),
-      log: output.split('\n').filter((l) => l.trim()).slice(-3),
-      summary: status === 'done' ? summarise(output) : '',
-      findings: status === 'done' ? parseFindings(output) : [],
+      log: lines.slice(-3),
+      summary: result ? String(result.summary ?? '') : status === 'done' ? output.trim().slice(0, 600) : '',
+      verdict: String(result?.verdict ?? 'COMMENT'),
+      hasResult: result !== null,
+      comments,
+      chosenCount: set.size,
+      posted: posted !== null,
+      postedUrl: String(posted?.url ?? ''),
+      postedCount: Number(posted?.count ?? 0),
       error: String(body.error ?? ''),
     };
   } catch (e) {
@@ -758,7 +832,11 @@ const sources: Sources = {
   currentSession: (_, store) => currentSession(store),
   reviewRequests: ([login, pollMs, epoch, actionsStamp], store, storage) => reviewRequests(store, storage, String(login ?? ''), Number(pollMs), Number(epoch), Number(actionsStamp)),
   prDetail: ([owner, name, number, rulesStamp], store, storage) => prDetail(store, storage, String(owner ?? ''), String(name ?? ''), String(number ?? ''), Number(rulesStamp)),
-  reviewJob: ([jobId, tick, epoch]) => reviewJob(String(jobId ?? ''), Number(tick), Number(epoch)),
+  reviewJob: ([jobId, tick, epoch, toggled, posted]) => reviewJob(String(jobId ?? ''), Number(tick), Number(epoch), Number(toggled), Number(posted)),
+  agentSettings: ([stamp], _store, storage) => agentSettings(storage, Number(stamp)),
+  setAgent: ([name], _store, storage) => setAgent(storage, String(name ?? '')),
+  toggleComment: ([jobId, index]) => toggleComment(String(jobId ?? ''), Number(index)),
+  postComments: ([jobId]) => postComments(String(jobId ?? '')),
   skillSettings: ([selected, rulesStamp, savedStamp], _store, storage) => skillSettings(storage, String(selected ?? ''), Number(rulesStamp), Number(savedStamp)),
   matchSkill: ([repo, rulesStamp], _store, storage) => matchSkill(storage, String(repo ?? ''), Number(rulesStamp)),
   deviceStart: ([now]) => deviceStart(Number(now)),

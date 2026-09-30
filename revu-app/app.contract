@@ -95,24 +95,54 @@ shape Started
   id: string
   error: string
 
-shape Finding
+shape Comment
   index: number
-  sev: string
-  loc: string
+  severity: string
+  path: string
+  line: number
   title: string
   body: string
+  chosen: bool
 
 shape Job
   ready: bool
   id: string
   status: string
   skill: string
+  agent: string
   step: number
   progress: number
   elapsed: string
   log: list<string>
   summary: string
-  findings: list<Finding>
+  verdict: string
+  hasResult: bool
+  comments: list<Comment>
+  chosenCount: number
+  posted: bool
+  postedUrl: string
+  postedCount: number
+  error: string
+
+shape Agents
+  current: string
+  claudeAvailable: bool
+  codexAvailable: bool
+  claudePath: string
+  codexPath: string
+
+shape AgentSet
+  stamp: number
+  ok: bool
+
+shape Toggled
+  stamp: number
+
+shape Posted
+  stamp: number
+  ok: bool
+  url: string
+  count: number
   error: string
 
 shape Cancelled
@@ -297,7 +327,9 @@ component Revu
   // pollMs moves once a minute (and on Refresh), not every clock tick.
   resource inbox = reviewRequests(session.login, pollMs, time.epochAtZero, actions.stamp) as shape Inbox
   resource detail = prDetail(top(nav).params.owner, top(nav).params.name, top(nav).params.number, rulesStamp) as shape PrDetail
-  resource job = reviewJob(jobId, tick, time.epochAtZero) as shape Job
+  resource job = reviewJob(jobId, tick, time.epochAtZero, toggledStamp, postedStamp) as shape Job
+  // The local agent that runs reviews (LLP 0004): Settings ▸ Model.
+  resource agents = agentSettings(agentStamp) as shape Agents
   resource skills = skillSettings(selectedSkill, rulesStamp, savedStamp) as shape SkillSettings
   resource testMatch = matchSkill(testRepo, rulesStamp) as shape SkillMatch
   // The menu bar item (LLP 0006): the pending count, a spinner while reviewing.
@@ -316,10 +348,17 @@ component Revu
   mutation rules as shape RulesResult
   mutation saved as shape SavedSkill
   mutation opened as shape Opened
+  mutation agentSet as shape AgentSet
+  mutation toggled as shape Toggled
+  mutation postResult as shape Posted
 
   derive signedIn = session.signedIn
   derive granted = match grant { case some(g) => g.status == "ok", case none => false }
   derive jobId = match started { case some(s) => s.id, case none => "" }
+  derive agentStamp = match agentSet { case some(a) => a.stamp, case none => 0 }
+  derive toggledStamp = match toggled { case some(t) => t.stamp, case none => 0 }
+  derive postedStamp = match postResult { case some(p) => p.stamp, case none => 0 }
+  derive posting = pending(postResult)
   derive rulesStamp = match rules { case some(r) => r.stamp, case none => 0 }
   derive savedStamp = match saved { case some(s) => s.stamp, case none => 0 }
   // The code's own deadline, so an expiry shows even if a poll is missed.
@@ -331,7 +370,7 @@ component Revu
   derive prOwner = top(nav).params.owner
   derive prName = top(nav).params.name
   derive prNumber = top(nav).params.number
-  derive reviewing = job.status == "queued" or job.status == "checking-out" or job.status == "running"
+  derive reviewing = job.status == "queued" or job.status == "preparing" or job.status == "running"
 
   action startSignIn writes device, grant, nowMs
     nowMs = time.epochAtZero + now()
@@ -383,6 +422,12 @@ component Revu
     nav = back(nav)
   action selectFinding(i: number) writes selectedFinding
     selectedFinding = i
+  action toggleComment(i: number) writes toggled
+    send toggled = toggleComment(jobId, i)
+  action postComments writes postResult
+    send postResult = postComments(jobId)
+  action chooseAgent(name: string) writes agentSet
+    send agentSet = setAgent(name)
   action setTestRepo(v: string) writes testRepo
     testRepo = v
   action setNewPattern(v: string) writes newPattern
@@ -625,7 +670,7 @@ component Revu
             column flex=1 min-height=0
               column padding-left=16 padding-right=16 padding-bottom=16 gap=6
                 text `Reviewing with ${job.skill}.md` font-size=16 font-weight=600 letter-spacing=-0.15 testId="review-title"
-                text "You can go back to the list. You'll get a notification when the review is ready." class=Secondary
+                text `${job.agent == "codex" ? "Codex CLI" : "Claude Code"} reads the pull request through gh; nothing is checked out. You can go back to the list.` class=Secondary
               column padding-left=16 padding-right=16 padding-bottom=16
                 box height=4 border-radius=9999 background-color="#eaecf0" overflow="hidden" width="100%"
                   box height=4 border-radius=9999 background-color="#11181c" width=`${job.progress}%`
@@ -636,13 +681,13 @@ component Revu
                   text "Queued with the sidecar" flex=1 color=(job.step > 0 ? "#596068" : "#11181c")
                 row gap=10 align-items="center"
                   box width=14 height=14 border-radius=9999 background-color=(job.step > 1 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 1 ? "rgb(9, 141, 72)" : job.step == 1 ? "#11181c" : "#d7dbdf")
-                  text "Checking out the pull request" flex=1 color=(job.step > 1 ? "#596068" : job.step == 1 ? "#11181c" : "#687076")
+                  text `Starting ${job.agent == "codex" ? "codex exec" : "claude -p"}` flex=1 color=(job.step > 1 ? "#596068" : job.step == 1 ? "#11181c" : "#687076")
                 row gap=10 align-items="center"
                   box width=14 height=14 border-radius=9999 background-color=(job.step > 2 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 2 ? "rgb(9, 141, 72)" : job.step == 2 ? "#11181c" : "#d7dbdf")
                   text `Loaded skill ${job.skill}.md` flex=1 color=(job.step > 2 ? "#596068" : job.step == 2 ? "#11181c" : "#687076")
                 row gap=10 align-items="center"
                   box width=14 height=14 border-radius=9999 background-color=(job.step > 3 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 3 ? "rgb(9, 141, 72)" : job.step == 3 ? "#11181c" : "#d7dbdf")
-                  text "Reviewing changes" flex=1 color=(job.step > 3 ? "#596068" : job.step == 3 ? "#11181c" : "#687076")
+                  text "Reading the diff and context via gh" flex=1 color=(job.step > 3 ? "#596068" : job.step == 3 ? "#11181c" : "#687076")
                 row gap=10 align-items="center"
                   box width=14 height=14 border-radius=9999 background-color="#ffffff" border-style="solid" border-width=1.5 border-color=(job.step == 4 ? "#11181c" : "#d7dbdf")
                   text "Drafting comments" flex=1 color=(job.step == 4 ? "#11181c" : "#687076")
@@ -660,7 +705,7 @@ component Revu
             column padding=16 gap=8 testId="review-failed"
               text "The review did not run" font-size=16 font-weight=600
               text job.error class=Error
-              text "The runner is chosen in LLP 0004; until then the sidecar has nothing to run the skill with." class=Secondary
+              text "Pick the agent in Settings ▸ Model; it must be installed and signed in." class=Secondary
               button press=goBack class=Outline align-self="flex-start"
                 text "Back"
           when job.ready and job.status == "done"
@@ -669,27 +714,45 @@ component Revu
                 column
                   column padding=16 padding-top=4 gap=8
                     text "Summary" class=SectionLabel
-                    text (job.summary == "" ? "The runner returned no summary." : job.summary) font-size=13 line-height=1.5 color="#596068" testId="summary"
+                    text (job.summary == "" ? "The agent returned no summary." : job.summary) font-size=13 line-height=1.5 color="#596068" testId="summary"
                   box class=Divider
                   row padding=16 padding-top=12 padding-bottom=6 justify-content="space-between" align-items="center"
                     text "Findings" class=SectionLabel
-                    text `${length(job.findings)} found` class=Tertiary
-                  each f in job.findings key=`${f.sev}:${f.loc}:${f.title}`
-                    button press=selectFinding(f.index) class=Row gap=10 background-color=(selectedFinding == f.index ? "#f0f1f2" : "transparent")
-                      column flex=1 min-width=0 gap=4
+                    text `${job.chosenCount} of ${length(job.comments)} selected` class=Tertiary testId="chosen-count"
+                  each c in job.comments key=`${c.index}`
+                    row class=Row gap=10 background-color=(selectedFinding == c.index ? "#f0f1f2" : "transparent")
+                      button press=toggleComment(c.index) width=16 height=16 border-radius=4 flex-shrink=0 margin-top=1 align-items="center" justify-content="center" border-style="solid" border-width=1 border-color=(c.chosen ? "#11181c" : "#d7dbdf") background-color=(c.chosen ? "#11181c" : "#ffffff") padding=0 disabled=job.posted testId=`choose-${c.index}` aria-label=`Include comment ${c.index + 1}`
+                        when c.chosen
+                          text "✓" color="#ffffff" font-size=10 font-weight=700
+                      button press=selectFinding(c.index) flex=1 min-width=0 gap=4 background-color="transparent" border-width=0 padding=0 text-align="left" display="flex" flex-direction="column" align-items="stretch"
                         row gap=6 align-items="center"
-                          text f.sev class=Tag background-color=(f.sev == "BUG" ? "rgb(255, 220, 220)" : f.sev == "RULE" ? "rgb(255, 244, 194)" : f.sev == "TEST" ? "rgb(219, 231, 255)" : "#f5f5f7") color=(f.sev == "BUG" ? "rgb(207, 34, 46)" : f.sev == "RULE" ? "#8a6d00" : f.sev == "TEST" ? "#0072DE" : "#596068")
-                          text f.loc font-family="ui-monospace" font-size=11 color="#687076" line-clamp=1
-                        text f.title font-size=13 font-weight=500 line-height=1.35
-                        when selectedFinding == f.index and f.body != ""
-                          text f.body font-size=13 line-height=1.55 color="#596068" padding-top=4
-                  when length(job.findings) == 0
-                    text "No labelled findings in the output." class=Tertiary padding-left=16 padding-bottom=12
+                          text c.severity class=Tag text-transform="uppercase" background-color=(c.severity == "critical" ? "rgb(255, 220, 220)" : c.severity == "design" ? "rgb(255, 244, 194)" : c.severity == "suggestion" ? "rgb(219, 231, 255)" : "#f5f5f7") color=(c.severity == "critical" ? "rgb(207, 34, 46)" : c.severity == "design" ? "#8a6d00" : c.severity == "suggestion" ? "#0072DE" : "#596068")
+                          text `${c.path}:${c.line}` font-family="ui-monospace" font-size=11 color="#687076" line-clamp=1 flex=1 min-width=0
+                        text c.title font-size=13 font-weight=500 line-height=1.35
+                        when selectedFinding == c.index and c.body != c.title
+                          text c.body font-size=13 line-height=1.55 color="#596068" padding-top=4
+                  when length(job.comments) == 0
+                    text (job.hasResult ? "No comments: the agent found nothing to say." : "The agent left no findings JSON; its output is above.") class=Tertiary padding-left=16 padding-bottom=12
               box class=Divider
-              row padding=12 padding-left=16 padding-right=16 gap=10 align-items="center" background-color="#f9fafb"
-                text "Nothing is posted to GitHub; the skill forbids it." class=Tertiary flex=1
-                button press=goBack class=Ghost
-                  text "Done"
+              column padding=12 padding-left=16 padding-right=16 gap=8 background-color="#f9fafb"
+                row gap=8 align-items="center"
+                  text (job.verdict == "APPROVE" ? "Approve" : job.verdict == "REQUEST_CHANGES" ? "Request changes" : "Comment") class=Outline height=28 testId="verdict"
+                  text (job.posted ? `Staged ${job.postedCount} as a pending review` : "Posted as a pending review from you") class=Tertiary flex=1 line-clamp=2
+                row gap=8 align-items="center" justify-content="flex-end"
+                  match postResult
+                    case some(p)
+                      when p.error != ""
+                        text p.error class=Error flex=1 line-clamp=2 testId="post-error"
+                    case none
+                      box
+                  when job.posted
+                    button press=openLink(job.postedUrl) class=PrimarySm testId="open-pending"
+                      text "Finish on GitHub ↗"
+                  else
+                    button press=goBack class=Ghost
+                      text "Discard"
+                    button press=postComments class=PrimarySm disabled=(posting or job.chosenCount == 0 or not job.hasResult) testId="post-comments"
+                      text (posting ? "Posting…" : `Post ${job.chosenCount} ${job.chosenCount == 1 ? "comment" : "comments"}`)
 
       // ---- 1f Settings — skills mapped by repository ---------------------
       when signedIn and screen == "settings"
@@ -705,6 +768,8 @@ component Revu
                 text "Accounts"
               button press=setSettingsTab("skills") class=(settingsTab == "skills" ? TabOn : Tab) testId="tab-skills"
                 text "Skills"
+              button press=setSettingsTab("model") class=(settingsTab == "model" ? TabOn : Tab) testId="tab-model"
+                text "Model"
             box width=28
           scroll flex=1 min-height=0
             when settingsTab == "general"
@@ -731,8 +796,24 @@ component Revu
                     text "Token in the macOS Keychain · scopes notifications, repo, read:user" class=Tertiary
                   button press=doSignOut class=Outline testId="sign-out"
                     text "Sign out"
+            when settingsTab == "model"
+              column padding=16 gap=12 max-width=560
+                text "Local agent" class=SectionLabel
+                text "Reviews run on the agent CLI you already use and are signed in to. Nothing is checked out: the agent reads the pull request through gh." font-size=12 line-height=1.5 color="#687076"
+                button press=chooseAgent("claude") class=Card display="flex" flex-direction="row" gap=12 align-items="center" border-color=(agents.current == "claude" ? "#11181c" : "#e1e4e8") text-align="left" testId="agent-claude"
+                  box width=16 height=16 border-radius=9999 border-style="solid" border-width=(agents.current == "claude" ? 5 : 1) border-color=(agents.current == "claude" ? "#11181c" : "#d7dbdf") background-color="#ffffff" flex-shrink=0
+                  column flex=1 gap=2
+                    text "Claude Code" font-size=13 font-weight=500
+                    text (agents.claudeAvailable ? `claude -p · ${agents.claudePath}` : "not installed — npm i -g @anthropic-ai/claude-code, then claude login") class=Tertiary line-clamp=1
+                button press=chooseAgent("codex") class=Card display="flex" flex-direction="row" gap=12 align-items="center" border-color=(agents.current == "codex" ? "#11181c" : "#e1e4e8") text-align="left" testId="agent-codex"
+                  box width=16 height=16 border-radius=9999 border-style="solid" border-width=(agents.current == "codex" ? 5 : 1) border-color=(agents.current == "codex" ? "#11181c" : "#d7dbdf") background-color="#ffffff" flex-shrink=0
+                  column flex=1 gap=2
+                    text "Codex CLI" font-size=13 font-weight=500
+                    text (agents.codexAvailable ? `codex exec · ${agents.codexPath}` : "not installed — npm i -g @openai/codex, then codex login") class=Tertiary line-clamp=1
+                when not sidecar.reachable
+                  text "The sidecar is offline; availability is unknown." class=Error
             when settingsTab == "skills"
-              row flex-wrap="wrap" align-items="flex-start" min-height="100%"
+              row flex-wrap="wrap" align-items="flex-start" min-height="100%" width="100%" box-sizing="border-box"
                 column width=(wide ? 300 : "100%") flex-shrink=0 border-right-style="solid" border-right-width=(wide ? 1 : 0) border-color="#e1e4e8" min-height=(wide ? "100%" : 0) testId="rules-pane"
                   column padding=16 padding-bottom=8 gap=8
                     row justify-content="space-between" align-items="center"
@@ -766,7 +847,7 @@ component Revu
                         text `${testMatch.skill}.md` class=Mono
                         text "via"
                         text testMatch.pattern class=Mono
-                column flex=1 min-width=300 testId="skill-pane"
+                column flex=1 min-width=300 max-width="100%" overflow="hidden" testId="skill-pane"
                   row padding-top=12 padding-bottom=12 padding-left=20 padding-right=20 gap=10 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="#eaecf0"
                     Icon(name="file-text", size=15, color="#687076")
                     row gap=6 flex-wrap="wrap"
