@@ -7,7 +7,7 @@ import type { ServerWebSocket } from 'bun';
 import { loadConfig } from './config.ts';
 import { closeMissing, getMeta, listPending, markSeen, openDb, setMeta, upsertPr, type PullRequestRow } from './db.ts';
 import { GitHubClient, pollDeviceFlow, startDeviceFlow, type ReviewRequest } from './github.ts';
-import { cancelJob, getJob, listJobs, listSkills, postReview, readSkill, startReview, writeSkill, type ReviewRequest as ReviewJobRequest } from './review.ts';
+import { cancelJob, getJob, hunksFor, listJobs, listSkills, loadPersistedJobs, postReview, readSkill, startReview, writeSkill, type ReviewRequest as ReviewJobRequest } from './review.ts';
 import { availableAgents, runners, type AgentName } from './runners.ts';
 
 const config = loadConfig();
@@ -232,16 +232,20 @@ const server = Bun.serve<undefined>({
     const review = path.match(/^\/reviews\/([^/]+)$/);
     if (request.method === 'GET' && review) {
       const job = getJob(decodeURIComponent(review[1]!));
-      return job ? json(job) : json({ error: 'not found' }, 404);
+      if (!job) return json({ error: 'not found' }, 404);
+      const { patches: _p, ...slim } = job;
+      // The hunks need the token; without one the window shows the comments alone.
+      const hunks = job.result && token ? await hunksFor(job, token).catch(() => []) : [];
+      return json({ ...slim, hunks });
     }
     const post = path.match(/^\/reviews\/([^/]+)\/post$/);
     if (request.method === 'POST' && post) {
       if (!token) return json({ error: 'not authenticated' }, 401);
       const job = getJob(decodeURIComponent(post[1]!));
       if (!job) return json({ error: 'not found' }, 404);
-      const body = (await request.json().catch(() => ({}))) as { comments?: number[] };
+      const body = (await request.json().catch(() => ({}))) as { comments?: number[]; verdict?: string };
       try {
-        const posted = await postReview(job, body.comments ?? [], token);
+        const posted = await postReview(job, body.comments ?? [], token, body.verdict);
         broadcast({ type: 'review', job });
         return json(posted);
       } catch (error) {
@@ -276,4 +280,5 @@ const server = Bun.serve<undefined>({
   },
 });
 
+console.log(`[revu-sidecar] ${loadPersistedJobs()} past reviews loaded`);
 console.log(`[revu-sidecar] listening on http://${host}:${server.port}  (db: ${db.filename})`);

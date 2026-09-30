@@ -44,6 +44,7 @@ export interface ReviewJob {
   result: ReviewResult | null; // the skill's JSON, read after the run
   resultPath: string | null;
   posted: { reviewId: number; url: string; count: number; dropped: string[] } | null;
+  patches?: Record<string, string>; // per-file patches, fetched once for the hunks
 }
 
 /** What a runner must provide; the choice of runner is LLP 0004's decision. */
@@ -163,7 +164,25 @@ export function resultPath(request: ReviewRequest): string {
   return `/tmp/deep-code-review-${request.number}.json`;
 }
 
-export function buildPrompt(request: ReviewRequest, skill: string): string {
+/** The pull request as GitHub serves it, fetched once by the sidecar so the
+ *  agent starts with everything: the unified diff (capped) and the file list. */
+export async function fetchPullContext(request: ReviewRequest, token: string): Promise<{ diff: string; files: string; truncated: boolean }> {
+  const headers = { Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'revu-sidecar' };
+  const base = `https://api.github.com/repos/${request.repo}/pulls/${request.number}`;
+  const [diffRes, filesRes] = await Promise.all([
+    fetch(base, { headers: { ...headers, Accept: 'application/vnd.github.diff' } }),
+    fetch(`${base}/files?per_page=100`, { headers: { ...headers, Accept: 'application/vnd.github+json' } }),
+  ]);
+  const limit = 160_000;
+  let diff = diffRes.ok ? await diffRes.text() : `(the diff could not be fetched: ${diffRes.status})`;
+  const truncated = diff.length > limit;
+  if (truncated) diff = `${diff.slice(0, limit)}\n… (diff truncated at ${limit} characters; fetch the rest with gh pr diff)`;
+  const list = filesRes.ok ? ((await filesRes.json()) as Array<{ filename: string; status: string; additions: number; deletions: number }>) : [];
+  const files = list.map((f) => `- ${f.filename} (${f.status}, +${f.additions} −${f.deletions})`).join('\n') || '(file list unavailable)';
+  return { diff, files, truncated };
+}
+
+export function buildPrompt(request: ReviewRequest, skill: string, context?: { diff: string; files: string }): string {
   const url = request.url ?? `https://github.com/${request.repo}/pull/${request.number}`;
   return [
     skill.trim(),
@@ -182,14 +201,69 @@ export function buildPrompt(request: ReviewRequest, skill: string): string {
     'Explore tools here — do not try them; every look at code is one `gh api` call (a file at',
     'the head sha, a tree listing, or `gh search code`). Batch what you need; keep the review focused.',
     '',
-    `Write the findings JSON to ${resultPath(request)} exactly as the skill describes, then stop.`,
-    'Do NOT run post-review.ts and do NOT post anything to GitHub: revu previews the',
-    'comments and stages the review itself. Never clone the repository.',
+    'The diff and the changed-file list are below, already fetched — start from them; use',
+    '`gh api` only for context the diff does not show (a full file at the head sha, callers).',
+    '',
+    `Finish by replying with the findings JSON exactly as the skill describes, as your final message,`,
+    'in one ```json fenced block — that reply is how revu receives it. Do not write files, do NOT',
+    'run post-review.ts and do NOT post anything to GitHub: revu previews the comments and stages',
+    'the review itself. Never clone the repository.',
     '',
     '## Description from the author',
     '',
     request.body.trim() || '(none)',
+    '',
+    '## Changed files',
+    '',
+    context?.files ?? '(not fetched)',
+    '',
+    '## Diff',
+    '',
+    '```diff',
+    context?.diff ?? '(not fetched)',
+    '```',
   ].join('\n');
+}
+
+export interface HunkLine { kind: 'context' | 'add' | 'del'; old: number; new: number; text: string; target: boolean }
+
+/** The diff lines around a comment's target, for the review window's diff
+ *  card (design 1e): up to `around` lines each side within its hunk. */
+export async function hunksFor(job: ReviewJob, token: string, around = 3): Promise<HunkLine[][]> {
+  if (!job.result) return [];
+  if (!job.patches) {
+    job.patches = {};
+    for (let page = 1; page <= 10; page += 1) {
+      const res = await fetch(`https://api.github.com/repos/${job.request.repo}/pulls/${job.request.number}/files?per_page=100&page=${page}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'revu-sidecar' },
+      });
+      if (!res.ok) break;
+      const list = (await res.json()) as Array<{ filename: string; patch?: string }>;
+      for (const f of list) job.patches[f.filename] = f.patch ?? '';
+      if (list.length < 100) break;
+    }
+    persist(job);
+  }
+  return job.result.comments.map((c) => {
+    const patch = job.patches?.[c.path];
+    if (!patch) return [];
+    const lines: HunkLine[] = [];
+    let oldN = 0; let newN = 0;
+    for (const raw of patch.split('\n')) {
+      const h = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
+      if (h) { oldN = Number(h[1]); newN = Number(h[2]); lines.push({ kind: 'context', old: -1, new: -1, text: raw, target: false }); continue; }
+      if (raw.startsWith('\\')) continue;
+      if (raw.startsWith('+')) { lines.push({ kind: 'add', old: -1, new: newN, text: raw.slice(1), target: false }); newN += 1; }
+      else if (raw.startsWith('-')) { lines.push({ kind: 'del', old: oldN, new: -1, text: raw.slice(1), target: false }); oldN += 1; }
+      else { lines.push({ kind: 'context', old: oldN, new: newN, text: raw.slice(1), target: false }); oldN += 1; newN += 1; }
+    }
+    const side = c.side === 'LEFT' ? 'old' : 'new';
+    let at = lines.findIndex((l) => l[side] === c.line);
+    if (at < 0 && c.line_content) at = lines.findIndex((l) => l.text.includes(c.line_content!.trim()));
+    if (at < 0) return [];
+    lines[at]!.target = true;
+    return lines.slice(Math.max(0, at - around), at + around + 1).filter((l) => l.old !== -1 || l.new !== -1 || l.text.startsWith('@@'));
+  });
 }
 
 /** The pull request's diff on the new side: for each file, the right-side
@@ -226,8 +300,9 @@ async function rightSideLines(request: ReviewRequest, token: string): Promise<Ma
  *  post-review.ts does: `line_content` wins over the number when it is
  *  found; a comment whose line is not in the diff is dropped, not guessed.
  *  Returns the review's id and URL. */
-export async function postReview(job: ReviewJob, chosen: number[], token: string): Promise<{ reviewId: number; url: string; count: number; dropped: string[] }> {
+export async function postReview(job: ReviewJob, chosen: number[], token: string, verdictOverride?: string): Promise<{ reviewId: number; url: string; count: number; dropped: string[] }> {
   if (!job.result) throw new Error('nothing to post: the review has no result');
+  if (verdictOverride === 'APPROVE' || verdictOverride === 'REQUEST_CHANGES' || verdictOverride === 'COMMENT') job.result.verdict = verdictOverride;
   const wanted = job.result.comments.filter((_, i) => chosen.includes(i));
   if (wanted.length === 0) throw new Error('no comments chosen');
   const diff = await rightSideLines(job.request, token);
@@ -257,10 +332,36 @@ export async function postReview(job: ReviewJob, chosen: number[], token: string
   if (!res.ok) throw new Error(`GitHub refused the review (${res.status}): ${body.message ?? ''}`);
   const posted = { reviewId: Number(body.id ?? 0), url: `${job.result.pr_url}/files`, count: comments.length, dropped };
   job.posted = posted;
+  persist(job);
   return posted;
 }
 
 const jobs = new Map<string, ReviewJob>();
+
+/** Finished jobs live on disk (without their transcript's bulk), so a result
+ *  outlives the sidecar and the review window can open it later. */
+const jobsDir = resolve(paths.appSupport, 'reviews');
+
+function persist(job: ReviewJob): void {
+  try {
+    mkdirSync(jobsDir, { recursive: true });
+    const slim = { ...job, output: job.output.slice(-4000) };
+    writeFileSync(resolve(jobsDir, `${job.id.replace(/[^a-z0-9._-]/gi, '_')}.json`), JSON.stringify(slim));
+  } catch { /* the disk is not the job's problem */ }
+}
+
+export function loadPersistedJobs(): number {
+  if (!existsSync(jobsDir)) return 0;
+  let n = 0;
+  for (const entry of readdirSync(jobsDir)) {
+    if (!entry.endsWith('.json')) continue;
+    try {
+      const job = JSON.parse(readFileSync(resolve(jobsDir, entry), 'utf8')) as ReviewJob;
+      if (job.id && !jobs.has(job.id)) { jobs.set(job.id, job); n += 1; }
+    } catch { /* skip a bad file */ }
+  }
+  return n;
+}
 let counter = 0;
 
 export function getJob(id: string): ReviewJob | undefined {
@@ -321,7 +422,10 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
       job.status = 'running';
       onChange(job);
       const skill = loadSkill(request.skill, (text) => { job.output += text; onChange(job); });
-      const prompt = buildPrompt(request, skill);
+      const context = await fetchPullContext(request, token);
+      job.output += `sidecar: fetched the diff (${Math.round(context.diff.length / 1024)} KB${context.truncated ? ', truncated' : ''}) and ${context.files.split('\n').length} files\n`;
+      onChange(job);
+      const prompt = buildPrompt(request, skill, context);
       const final = await runner.run({
         worktree: job.worktree,
         prompt,
@@ -368,6 +472,7 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
       clearTimeout(deadline);
       controllers.delete(job.id);
       job.finishedAt = new Date().toISOString();
+      persist(job);
       onChange(job);
     }
   })();

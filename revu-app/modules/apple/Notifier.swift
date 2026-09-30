@@ -44,6 +44,8 @@ final class Notifier: ExactModule {
     /// This session's window: "popover" for the first, else the kind the
     /// popover asked for (`window` op) — "settings" today (LLP 0006 D2).
     private(set) var role = "popover"
+    /// The role's argument (a review window's job id).
+    private(set) var roleArg = ""
     #if os(macOS)
     private var menuBar: MenuBar?
     private var secondary: SecondaryWindow?
@@ -60,8 +62,10 @@ final class Notifier: ExactModule {
                 Sidecar.startIfNeeded()
             } else {
                 role = MenuBar.pendingRole ?? "window"
+                roleArg = MenuBar.pendingArg ?? ""
                 MenuBar.pendingRole = nil
-                secondary = SecondaryWindow(kind: role)
+                MenuBar.pendingArg = nil
+                secondary = SecondaryWindow(kind: role, arg: roleArg)
             }
         }
         #endif
@@ -95,7 +99,7 @@ final class Notifier: ExactModule {
         case "tray":
             return tray(request)
         case "role":
-            return ["kind": role]
+            return ["kind": role, "arg": roleArg]
         case let op:
             throw ExactNativeRefusal("the notifier answers no call \(op.map { "\"\($0)\"" } ?? "null")")
         }
@@ -119,7 +123,7 @@ final class Notifier: ExactModule {
         case "tray":
             reply.send(tray(request))
         case "role":
-            reply.send(["kind": role])
+            reply.send(["kind": role, "arg": roleArg])
         case "window":
             // A window of a kind: shown if it exists, else opened through the
             // host's own New Window (a second session of the same plan) whose
@@ -127,7 +131,8 @@ final class Notifier: ExactModule {
             #if os(macOS)
             guard let menuBar else { return reply.fail("windows are the popover's to open") }
             let kind = request["kind"] as? String ?? "settings"
-            reply.send(["ok": menuBar.openWindow(kind: kind)])
+            let arg = request["arg"] as? String ?? ""
+            reply.send(["ok": menuBar.openWindow(kind: kind, arg: arg)])
             #else
             reply.fail("no windows here")
             #endif
@@ -320,8 +325,9 @@ import ObjectiveC
 /// never closed — closing ends the session (ExactMac's `windowWillClose`).
 final class MenuBar: NSObject {
     static var shared: MenuBar?
-    /// The role the next module instance (the next window's session) takes.
+    /// The role (and its argument) the next module instance — the next window's session — takes.
     static var pendingRole: String?
+    static var pendingArg: String?
     /// Windows by kind, kept across hides.
     static var windows: [String: SecondaryWindow] = [:]
 
@@ -447,19 +453,21 @@ final class MenuBar: NSObject {
     }
 
     @objc private func openFromMenu() { show() }
-    @objc private func settingsFromMenu() { _ = openWindow(kind: "settings") }
+    @objc private func settingsFromMenu() { _ = openWindow(kind: "settings", arg: "") }
 
     /// A window of a kind (design 1f: settings at 880 × 640): shown again if
     /// it is open, else the host opens a New Window — a second session of the
     /// plan — and that session's module instance takes the kind as its role.
-    func openWindow(kind: String) -> Bool {
-        if let existing = MenuBar.windows[kind] {
+    func openWindow(kind: String, arg: String = "") -> Bool {
+        let key = arg.isEmpty ? kind : "\(kind):\(arg)"
+        if let existing = MenuBar.windows[key] {
             existing.show()
             return true
         }
         MenuBar.pendingRole = kind
+        MenuBar.pendingArg = arg
         let opened = NSApp.sendAction(#selector(NSResponder.newWindowForTab(_:)), to: nil, from: nil)
-        if !opened { MenuBar.pendingRole = nil }
+        if !opened { MenuBar.pendingRole = nil; MenuBar.pendingArg = nil }
         return opened
     }
 
@@ -595,12 +603,15 @@ enum Sidecar {
 /// a fresh session.
 final class SecondaryWindow: NSObject {
     let kind: String
+    let arg: String
+    var key: String { arg.isEmpty ? kind : "\(kind):\(arg)" }
     private(set) weak var window: NSWindow?
 
-    init(kind: String) {
+    init(kind: String, arg: String = "") {
         self.kind = kind
+        self.arg = arg
         super.init()
-        MenuBar.windows[kind] = self
+        MenuBar.windows[key] = self
         DispatchQueue.main.async { [weak self] in self?.adopt() }
     }
 
@@ -614,7 +625,7 @@ final class SecondaryWindow: NSObject {
         w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         w.titleVisibility = .hidden
         w.titlebarAppearsTransparent = true
-        w.title = "revu — \(kind.capitalized)"
+        w.title = kind == "review" ? "revu — Review" : "revu — \(kind.capitalized)"
         w.toolbar = nil
         w.isMovable = true
         w.level = .normal
@@ -641,7 +652,7 @@ final class SecondaryWindow: NSObject {
     @objc private func hide() { window?.orderOut(nil) }
 
     @objc private func closed(_ note: Notification) {
-        if MenuBar.windows[kind] === self { MenuBar.windows.removeValue(forKey: kind) }
+        if MenuBar.windows[key] === self { MenuBar.windows.removeValue(forKey: key) }
     }
 }
 #endif

@@ -68,6 +68,7 @@ type Review = Inbox['mine'][number];
 type PrDetail = Result<'prDetail'>;
 type Job = Result<'reviewJob'>;
 type Comment = Job['comments'][number];
+type HunkLine = Comment['hunk'][number];
 type SkillSettings = Result<'skillSettings'>;
 type Rule = SkillSettings['rules'][number];
 type Json = Record<string, any>;
@@ -665,11 +666,11 @@ async function toggleComment(jobId: string, index: number): Promise<Result<'togg
   return { stamp: ++stamp };
 }
 
-async function postComments(jobId: string): Promise<Result<'postComments'>> {
+async function postComments(jobId: string, verdict: string): Promise<Result<'postComments'>> {
   const set = chosen.get(jobId);
   if (!jobId || !set || set.size === 0) return { stamp: ++stamp, ok: false, url: '', count: 0, error: 'Choose at least one comment.' };
   try {
-    const res = await sidecar(`/reviews/${encodeURIComponent(jobId)}/post`, { method: 'POST', body: JSON.stringify({ comments: [...set].sort((a, b) => a - b) }) });
+    const res = await sidecar(`/reviews/${encodeURIComponent(jobId)}/post`, { method: 'POST', body: JSON.stringify({ comments: [...set].sort((a, b) => a - b), verdict: verdict || undefined }) });
     const body = (await res.json()) as Json;
     if (!res.ok) return { stamp: ++stamp, ok: false, url: '', count: 0, error: String(body.error ?? `sidecar answered ${res.status}`) };
     return { stamp: ++stamp, ok: true, url: String(body.url ?? ''), count: Number(body.count ?? 0), error: '' };
@@ -686,7 +687,7 @@ function overall(summary: string): string {
   return head.replace(/^#{1,6}\s*overall\s*$/im, '').trim();
 }
 
-const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, agent: DEFAULT_AGENT, step: 0, progress: 0, elapsed: '0:00', startedAt: '', finishedAt: '', lastOutputAt: '', log: [], calls: 0, summary: '', verdict: '', hasResult: false, comments: [], chosenCount: 0, posted: false, postedUrl: '', postedCount: 0, error: '' };
+const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, agent: DEFAULT_AGENT, step: 0, progress: 0, elapsed: '0:00', startedAt: '', finishedAt: '', lastOutputAt: '', repo: '', number: 0, title: '', log: [], calls: 0, summary: '', verdict: '', hasResult: false, comments: [], chosenCount: 0, posted: false, postedUrl: '', postedCount: 0, error: '' };
 
 async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: number, _posted: number): Promise<Job> {
   if (!jobId) return emptyJob;
@@ -704,10 +705,12 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
     const result = (body.result ?? null) as Json | null;
     const rawComments = ((result?.comments ?? []) as Json[]);
     const set = status === 'done' && result ? chosenFor(jobId, rawComments) : new Set<number>();
+    const hunks = ((body.hunks ?? []) as Json[][]);
     const comments: Comment[] = rawComments.map((c, index) => {
       const text = String(c.body ?? '').trim();
       const title = text.split('\n')[0]?.slice(0, 140) ?? '';
-      return { index, severity: String(c.severity ?? 'suggestion'), path: String(c.path ?? ''), line: Number(c.line ?? 0), title, body: text, chosen: set.has(index) };
+      const hunk: HunkLine[] = (hunks[index] ?? []).map((l) => ({ kind: String(l.kind ?? 'context'), oldNo: Number(l.old ?? -1), newNo: Number(l.new ?? -1), text: String(l.text ?? ''), target: Boolean(l.target) }));
+      return { index, severity: String(c.severity ?? 'suggestion'), path: String(c.path ?? ''), line: Number(c.line ?? 0), title, body: text, chosen: set.has(index), hunk };
     });
     const posted = (body.posted ?? null) as Json | null;
     return {
@@ -724,6 +727,9 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
       log: lines.slice(-3),
       calls: lines.filter((l) => /\bgh (api|pr|repo|search)\b/.test(l)).length,
       lastOutputAt: String(body.lastOutputAt ?? body.startedAt ?? ''),
+      repo: String(body.request?.repo ?? ''),
+      number: Number(body.request?.number ?? 0),
+      title: String(body.request?.title ?? ''),
       summary: result ? overall(String(result.summary ?? '')) : status === 'done' ? output.trim().slice(0, 600) : '',
       verdict: String(result?.verdict ?? 'COMMENT'),
       hasResult: result !== null,
@@ -872,20 +878,34 @@ async function trayState(native: Native, count: number, busy: boolean): Promise<
 /** Which window this session draws: the popover, or a kind the popover opened (LLP 0006 D2). */
 async function windowRole(native: Native): Promise<Result<'windowRole'>> {
   const n = notifier(native);
-  if (!n) return { kind: 'popover' };
+  if (!n) return { kind: 'popover', arg: '' };
+  let r: { kind?: string; arg?: string };
   try {
-    return { kind: String((n.call({ op: 'role' }) as { kind?: string }).kind ?? 'popover') };
+    r = n.call({ op: 'role' }) as typeof r;
   } catch {
-    return { kind: String(((await n.later({ op: 'role' })) as { kind?: string }).kind ?? 'popover') };
+    r = (await n.later({ op: 'role' })) as typeof r;
+  }
+  return { kind: String(r.kind ?? 'popover'), arg: String(r.arg ?? '') };
+}
+
+/** The popover tells the user a review is ready (design 1d's promise). */
+async function notifyDone(native: Native, jobId: string, title: string, count: number): Promise<Result<'notifyDone'>> {
+  const n = notifier(native);
+  if (!n || !jobId) return { stamp: ++stamp, ok: false };
+  try {
+    await n.later({ op: 'notify', id: `revu:review:${jobId}`, title: 'Review ready', body: `${title} — ${count} ${count === 1 ? 'finding' : 'findings'}`, sound: 'default', actions: [{ id: 'open', title: 'Open' }], data: { jobId } });
+    return { stamp: ++stamp, ok: true };
+  } catch {
+    return { stamp: ++stamp, ok: false };
   }
 }
 
 /** Opens (or shows) the window of a kind; false where there are no windows, so the app navigates instead. */
-async function openWindow(native: Native, kind: string): Promise<Result<'openWindow'>> {
+async function openWindow(native: Native, kind: string, arg = ''): Promise<Result<'openWindow'>> {
   const n = notifier(native);
   if (!n) return { stamp: ++stamp, ok: false };
   try {
-    const r = (await n.later({ op: 'window', kind })) as { ok?: boolean };
+    const r = (await n.later({ op: 'window', kind, arg })) as { ok?: boolean };
     return { stamp: ++stamp, ok: Boolean(r.ok) };
   } catch {
     return { stamp: ++stamp, ok: false };
@@ -894,7 +914,8 @@ async function openWindow(native: Native, kind: string): Promise<Result<'openWin
 
 const sources: Sources = {
   windowRole: (_, _store, _storage, native) => windowRole(native),
-  openWindow: ([kind], _store, _storage, native) => openWindow(native, String(kind ?? 'settings')),
+  openWindow: ([kind, arg], _store, _storage, native) => openWindow(native, String(kind ?? 'settings'), String(arg ?? '')),
+  notifyDone: ([jobId, title, count], _store, _storage, native) => notifyDone(native, String(jobId ?? ''), String(title ?? ''), Number(count)),
   trayState: ([count, busy], _store, _storage, native) => trayState(native, Number(count), Boolean(busy)),
   notificationStatus: (_, _store, _storage, native) => notificationStatus(native),
   requestNotificationPermission: (_, _store, _storage, native) => requestNotificationPermission(native),
@@ -909,7 +930,7 @@ const sources: Sources = {
   setAgent: ([name], _store, storage) => setAgent(storage, String(name ?? '')),
   setModel: ([model], _store, storage) => setModel(storage, String(model ?? '')),
   toggleComment: ([jobId, index]) => toggleComment(String(jobId ?? ''), Number(index)),
-  postComments: ([jobId]) => postComments(String(jobId ?? '')),
+  postComments: ([jobId, verdict]) => postComments(String(jobId ?? ''), String(verdict ?? '')),
   skillSettings: ([selected, rulesStamp, savedStamp], _store, storage) => skillSettings(storage, String(selected ?? ''), Number(rulesStamp), Number(savedStamp)),
   matchSkill: ([repo, rulesStamp], _store, storage) => matchSkill(storage, String(repo ?? ''), Number(rulesStamp)),
   deviceStart: ([now]) => deviceStart(Number(now)),
