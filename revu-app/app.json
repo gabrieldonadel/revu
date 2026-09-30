@@ -3,6 +3,13 @@
   "short_name": "revu",
   "id": "dev.donadel.revu",
   "start_url": "/",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ],
   "display": "standalone",
   "app": {
     "id": "dev.donadel.revu",
@@ -27,9 +34,19 @@
     }
   },
   "file_handlers": [
-    { "action": "/", "name": "Skill file", "accept": { "text/markdown": [".md"] } }
+    {
+      "action": "/",
+      "name": "Skill file",
+      "accept": {
+        "text/markdown": [
+          ".md"
+        ]
+      }
+    }
   ],
-  "launch_handler": { "client_mode": "navigate-new" },
+  "launch_handler": {
+    "client_mode": "navigate-new"
+  },
   "theme_color": "#111827",
   "background_color": "#ffffff",
   "rust": false,

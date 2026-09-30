@@ -552,7 +552,7 @@ async function saveSkill(name: string, content: string): Promise<Result<'saveSki
 
 // --- AI review jobs (LLP 0004; the sidecar runs them) ----------------------
 
-async function sidecarStatus(): Promise<Result<'sidecarStatus'>> {
+async function sidecarStatus(_tick: number, _pollMs: number): Promise<Result<'sidecarStatus'>> {
   try {
     const res = await sidecar('/health');
     if (!res.ok) return { reachable: false, runner: '', detail: `sidecar answered ${res.status}` };
@@ -677,17 +677,12 @@ async function postComments(jobId: string): Promise<Result<'postComments'>> {
   }
 }
 
-/** The summary's overall part, as plain text: up to its findings heading
- *  (the comments carry those), heading markers and emphasis stripped. */
+/** The summary's overall part, as markdown: up to its findings heading (the
+ *  comments carry those); a lone "Overall" heading is dropped. */
 function overall(summary: string): string {
   const cut = summary.search(/^#{1,6}\s*findings/im);
   const head = cut > 0 ? summary.slice(0, cut) : summary;
-  return head
-    .split('\n')
-    .map((l) => l.replace(/^#{1,6}\s*/, '').replace(/\*\*(.+?)\*\*/g, '$1').trim())
-    .filter((l) => l && !/^overall$/i.test(l))
-    .join('\n')
-    .slice(0, 900);
+  return head.replace(/^#{1,6}\s*overall\s*$/im, '').trim();
 }
 
 const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, agent: DEFAULT_AGENT, step: 0, progress: 0, elapsed: '0:00', log: [], summary: '', verdict: '', hasResult: false, comments: [], chosenCount: 0, posted: false, postedUrl: '', postedCount: 0, error: '' };
@@ -891,7 +886,7 @@ const sources: Sources = {
   requestNotificationPermission: (_, _store, _storage, native) => requestNotificationPermission(native),
   announceNew: ([now], store, storage, native) => announceNew(store, storage, native, Number(now)),
   notificationActions: ([now], _store, storage, native) => notificationActions(storage, native, Number(now)),
-  sidecarStatus: () => sidecarStatus(),
+  sidecarStatus: ([tick, pollMs]) => sidecarStatus(Number(tick), Number(pollMs)),
   currentSession: (_, store, storage) => currentSession(store, storage),
   reviewRequests: ([login, pollMs, epoch, actionsStamp], store, storage) => reviewRequests(store, storage, String(login ?? ''), Number(pollMs), Number(epoch), Number(actionsStamp)),
   prDetail: ([owner, name, number, rulesStamp], store, storage) => prDetail(store, storage, String(owner ?? ''), String(name ?? ''), String(number ?? ''), Number(rulesStamp)),
