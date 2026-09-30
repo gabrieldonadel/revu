@@ -401,6 +401,9 @@ final class MenuBar: NSObject {
         let size = window.frame.size
         guard let button = item.button, let buttonWindow = button.window, let screen = buttonWindow.screen ?? NSScreen.main else { return false }
         let anchor = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        // Before the bar has laid the item out its window sits at the origin;
+        // an anchor outside the menu bar band is not the item's place yet.
+        guard anchor.minY > screen.frame.maxY - 60 else { return false }
         var x = anchor.midX - size.width / 2
         let visible = screen.visibleFrame
         x = min(max(x, visible.minX + 8), visible.maxX - size.width - 8)
@@ -412,7 +415,7 @@ final class MenuBar: NSObject {
     func show(attempt: Int = 0) {
         adoptWindow()
         guard let window = popover else { return }
-        if !place(), attempt < 20 {
+        if !place(), attempt < 60 {
             // The bar has not placed the item yet; try again shortly.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.show(attempt: attempt + 1) }
             return

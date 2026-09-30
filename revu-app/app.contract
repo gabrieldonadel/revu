@@ -362,6 +362,9 @@ component Revu
     nav = push(nav, path("pr", owner, name, number))
   action goBack writes nav
     nav = back(nav)
+  // A page outside the app: the host's browser (Contract's `openURL`).
+  action openLink(url: string)
+    openURL(url)
   // With the menu bar (the tray answers), settings is a window of its own;
   // elsewhere (web) it is a screen.
   action openSettings writes nav, opened
@@ -462,7 +465,7 @@ component Revu
                 column class=Card testId="device-code"
                   text "Enter this code at github.com/login/device" class=Tertiary
                   text d.userCode font-family="ui-monospace" font-size=18 font-weight=600 letter-spacing=2 testId="user-code"
-                  link href=d.verificationUri color="#0072DE" font-size=12 testId="verification-link"
+                  button press=openLink(d.verificationUri) class=Ghost height=24 padding-left=0 padding-right=0 align-self="flex-start" color="#0072DE" font-size=12 testId="verification-link"
                     text "Open github.com/login/device ↗"
                   when d.error != ""
                     text d.error class=Error testId="device-error"
@@ -534,7 +537,7 @@ component Revu
           box class=Divider
           row padding-top=10 padding-right=16 padding-bottom=10 padding-left=16 justify-content="space-between" align-items="center"
             text (inbox.ready ? `Synced ${inbox.polledAt} · ${session.login}` : "Syncing…") class=Tertiary testId="synced"
-            link href="https://github.com/pulls/review-requested" color="#687076" font-size=12
+            button press=openLink("https://github.com/pulls/review-requested") class=Ghost height=24 padding-left=0 padding-right=0 color="#687076" font-size=12 testId="open-github"
               text "Open on GitHub ↗"
 
       // ---- 1c Popover — PR quick look -----------------------------------
@@ -544,7 +547,7 @@ component Revu
             button press=goBack class=IconBtn testId="back" aria-label="Back"
               Icon(name="chevron-left", size=16, color="#596068")
             text `${prOwner}/${prName} #${prNumber}` class=MonoLabel flex=1
-            link href=detail.url color="#596068" font-size=13 padding-right=4 testId="open-on-github"
+            button press=openLink(detail.url) class=IconBtn color="#596068" font-size=13 testId="open-on-github"
               text "↗"
           scroll flex=1 min-height=0
             column
@@ -595,7 +598,7 @@ component Revu
             button press=runReview class=PrimarySm flex=1 disabled=(not detail.ready or not sidecar.reachable) testId="run-review"
               Icon(name="sparkles", size=14, color="#ffffff")
               text (sidecar.reachable ? "Run AI review" : "Sidecar offline")
-            link href=`${detail.url}/files` class=Outline testId="open-diff"
+            button press=openLink(`${detail.url}/files`) class=Outline testId="open-diff"
               text "Open diff"
 
       // ---- 1d / 1e Popover — AI review in progress, then the results -----
