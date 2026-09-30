@@ -12,10 +12,10 @@
     "macos": {
       "minimumOS": "14.0",
       "window": {
-        "width": 440,
-        "height": 640,
-        "minWidth": 400,
-        "minHeight": 560
+        "width": 380,
+        "height": 600,
+        "minWidth": 380,
+        "minHeight": 600
       }
     },
     "web": {}
@@ -26,6 +26,7 @@
       "macos": "0"
     }
   },
+  "launch_handler": { "client_mode": "navigate-new" },
   "theme_color": "#111827",
   "background_color": "#ffffff",
   "rust": false,

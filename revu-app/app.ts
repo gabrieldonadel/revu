@@ -711,7 +711,45 @@ async function notificationActions(storage: Storage, native: Native, now: number
   return { stamp: applied.length ? now : 0, applied };
 }
 
+/** The menu bar item follows the inbox and the running review (LLP 0006). */
+async function trayState(native: Native, count: number, busy: boolean): Promise<Result<'trayState'>> {
+  const n = notifier(native);
+  if (!n) return { ok: false };
+  try {
+    return { ok: Boolean((n.call({ op: 'tray', count, busy }) as { ok?: boolean }).ok) };
+  } catch {
+    const r = (await n.later({ op: 'tray', count, busy })) as { ok?: boolean };
+    return { ok: Boolean(r.ok) };
+  }
+}
+
+/** Which window this session draws: the popover, or a kind the popover opened (LLP 0006 D2). */
+async function windowRole(native: Native): Promise<Result<'windowRole'>> {
+  const n = notifier(native);
+  if (!n) return { kind: 'popover' };
+  try {
+    return { kind: String((n.call({ op: 'role' }) as { kind?: string }).kind ?? 'popover') };
+  } catch {
+    return { kind: String(((await n.later({ op: 'role' })) as { kind?: string }).kind ?? 'popover') };
+  }
+}
+
+/** Opens (or shows) the window of a kind; false where there are no windows, so the app navigates instead. */
+async function openWindow(native: Native, kind: string): Promise<Result<'openWindow'>> {
+  const n = notifier(native);
+  if (!n) return { stamp: ++stamp, ok: false };
+  try {
+    const r = (await n.later({ op: 'window', kind })) as { ok?: boolean };
+    return { stamp: ++stamp, ok: Boolean(r.ok) };
+  } catch {
+    return { stamp: ++stamp, ok: false };
+  }
+}
+
 const sources: Sources = {
+  windowRole: (_, _store, _storage, native) => windowRole(native),
+  openWindow: ([kind], _store, _storage, native) => openWindow(native, String(kind ?? 'settings')),
+  trayState: ([count, busy], _store, _storage, native) => trayState(native, Number(count), Boolean(busy)),
   notificationStatus: (_, _store, _storage, native) => notificationStatus(native),
   requestNotificationPermission: (_, _store, _storage, native) => requestNotificationPermission(native),
   announceNew: ([now], store, storage, native) => announceNew(store, storage, native, Number(now)),

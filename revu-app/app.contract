@@ -181,6 +181,16 @@ shape Seen
   stamp: number
   id: string
 
+shape Tray
+  ok: bool
+
+shape WindowRole
+  kind: string
+
+shape Opened
+  stamp: number
+  ok: bool
+
 // --- Expo design-system tokens (colors_and_type.css, light) ---------------
 // fg-default #11181c · fg-secondary #596068 · fg-tertiary #687076 ·
 // fg-disabled #c9d1d9 · border-default #e1e4e8 · border-subtle #eaecf0 ·
@@ -290,6 +300,10 @@ component Revu
   resource job = reviewJob(jobId, tick, time.epochAtZero) as shape Job
   resource skills = skillSettings(selectedSkill, rulesStamp, savedStamp) as shape SkillSettings
   resource testMatch = matchSkill(testRepo, rulesStamp) as shape SkillMatch
+  // The menu bar item (LLP 0006): the pending count, a spinner while reviewing.
+  resource tray = trayState(inbox.total, reviewing) as shape Tray
+  // Which window this session draws (LLP 0006 D2): the popover, or "settings".
+  resource role = windowRole() as shape WindowRole
 
   mutation device as shape DeviceCode refreshes session
   mutation grant as shape Grant refreshes session, inbox
@@ -301,6 +315,7 @@ component Revu
   mutation cancelled as shape Cancelled
   mutation rules as shape RulesResult
   mutation saved as shape SavedSkill
+  mutation opened as shape Opened
 
   derive signedIn = session.signedIn
   derive granted = match grant { case some(g) => g.status == "ok", case none => false }
@@ -309,7 +324,10 @@ component Revu
   derive savedStamp = match saved { case some(s) => s.stamp, case none => 0 }
   // The code's own deadline, so an expiry shows even if a poll is missed.
   derive codeExpired = match device { case some(d) => d.ok and nowMs > d.expiresAt, case none => false }
-  derive screen = top(nav).name
+  derive isPopover = role.kind != "settings"
+  // A settings window draws settings whatever its nav says; wide is its layout.
+  derive screen = isPopover ? top(nav).name : "settings"
+  derive wide = not isPopover
   derive prOwner = top(nav).params.owner
   derive prName = top(nav).params.name
   derive prNumber = top(nav).params.number
@@ -344,8 +362,13 @@ component Revu
     nav = push(nav, path("pr", owner, name, number))
   action goBack writes nav
     nav = back(nav)
-  action openSettings writes nav, testRepo
-    nav = push(nav, "/settings")
+  // With the menu bar (the tray answers), settings is a window of its own;
+  // elsewhere (web) it is a screen.
+  action openSettings writes nav, opened
+    if tray.ok
+      send opened = openWindow("settings")
+    else
+      nav = push(nav, "/settings")
   action setSettingsTab(t: string) writes settingsTab
     settingsTab = t
   action runReview writes started, nav, selectedFinding
@@ -390,10 +413,10 @@ component Revu
   action clock writes tick, grant, nowMs, pollMs, announced
     tick = tick + 1
     nowMs = time.epochAtZero + now()
-    if tick % 12 == 0
+    if tick % 12 == 0 and isPopover
       pollMs = nowMs
     if signedIn
-      if tick % 12 == 1
+      if tick % 12 == 1 and isPopover
         send announced = announceNew(nowMs)
       if pollMs == 0
         pollMs = nowMs
@@ -668,10 +691,11 @@ component Revu
       // ---- 1f Settings — skills mapped by repository ---------------------
       when signedIn and screen == "settings"
         column flex=1 min-height=0 testId="settings-screen"
-          row padding-top=8 padding-right=12 padding-bottom=8 padding-left=12 gap=6 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="#e1e4e8" background-color="#f9fafb"
-            button press=goBack class=IconBtn testId="back" aria-label="Back"
-              Icon(name="chevron-left", size=16, color="#596068")
-            row flex=1 justify-content="center" gap=4
+          row height=44 padding-right=12 padding-left=(wide ? 80 : 12) gap=6 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="#e1e4e8" background-color="#f9fafb" flex-shrink=0
+            when not wide
+              button press=goBack class=IconBtn testId="back" aria-label="Back"
+                Icon(name="chevron-left", size=16, color="#596068")
+            row flex=1 justify-content="center" gap=4 padding-right=(wide ? 52 : 0)
               button press=setSettingsTab("general") class=(settingsTab == "general" ? TabOn : Tab) testId="tab-general"
                 text "General"
               button press=setSettingsTab("accounts") class=(settingsTab == "accounts" ? TabOn : Tab) testId="tab-accounts"
@@ -705,63 +729,60 @@ component Revu
                   button press=doSignOut class=Outline testId="sign-out"
                     text "Sign out"
             when settingsTab == "skills"
-              column
-                column padding=16 padding-bottom=8 gap=8
-                  row justify-content="space-between" align-items="center"
-                    text "Repository rules" class=SectionLabel
-                  text "First match wins. Patterns support *." font-size=12 line-height=1.5 color="#687076"
-                  each rule in skills.rules key=rule.pattern
-                    row padding-top=8 padding-bottom=8 padding-left=8 padding-right=8 border-radius=6 gap=10 align-items="center" background-color=(rule.skill == skills.selected ? "#eaecf0" : "transparent")
-                      column flex=1 min-width=0 gap=2
-                        text rule.pattern font-family="ui-monospace" font-size=12 font-weight=500
-                        text `→ ${rule.skill}.md` class=Tertiary
-                      button press=removeRule(rule.pattern) class=IconBtn width=24 height=24 aria-label=`Remove rule ${rule.pattern}`
-                        Icon(name="x", size=13, color="#687076")
-                  row gap=6 align-items="center"
-                    input value=newPattern input=setNewPattern autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="owner/repo*" class=Field flex=1 testId="new-pattern"
-                    input value=newSkill input=setNewSkill autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="skill" class=Field flex=1 testId="new-skill"
-                    button press=addRule class=OutlineSm height=30 disabled=(newPattern == "" or newSkill == "") testId="add-rule"
-                      Icon(name="plus", size=13, color="#11181c")
-                  match rules
-                    case some(r)
-                      when r.error != ""
-                        text r.error class=Error
-                    case none
-                      box
-                box class=Divider
-                column padding=16 padding-top=12 gap=8
-                  text "Test a repository" class=Tertiary
-                  input value=testRepo input=setTestRepo autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="expo/orbit" class=Field testId="test-repo"
-                  when testRepo != ""
-                    row gap=4 class=Secondary
-                      text "Uses"
-                      text `${testMatch.skill}.md` class=Mono
-                      text "via"
-                      text testMatch.pattern class=Mono
-                box class=Divider
-                column padding=16 padding-top=12 gap=8
-                  row justify-content="space-between" align-items="center"
-                    text "Skill files" class=SectionLabel
-                    text (skills.reachable ? "" : "sidecar offline") class=Error
-                  row gap=6 flex-wrap="wrap"
-                    each s in skills.skills key=s.name
-                      button press=selectSkill(s.name) class=(s.name == skills.selected ? ChipOn : Chip) testId=`skill-${s.name}`
-                        Icon(name="file-text", size=13, color=(s.name == skills.selected ? "#11181c" : "#596068"))
-                        text `${s.name}.md`
-                  when skills.selected != ""
-                    row gap=8 align-items="center"
-                      text (skills.error != "" ? skills.error : `Used by ${skills.usedBy}`) class=Tertiary flex=1 line-clamp=1
-                      when skillEditing
-                        text "EDITED" class=Tag background-color="rgb(255, 244, 194)" color="#8a6d00"
+              row flex-wrap="wrap" align-items="flex-start" min-height="100%"
+                column width=(wide ? 300 : "100%") flex-shrink=0 border-right-style="solid" border-right-width=(wide ? 1 : 0) border-color="#e1e4e8" min-height=(wide ? "100%" : 0) testId="rules-pane"
+                  column padding=16 padding-bottom=8 gap=8
+                    row justify-content="space-between" align-items="center"
+                      text "Repository rules" class=SectionLabel
+                    text "First match wins. Patterns support *." font-size=12 line-height=1.5 color="#687076"
+                    each rule in skills.rules key=rule.pattern
+                      row padding-top=8 padding-bottom=8 padding-left=8 padding-right=8 border-radius=6 gap=10 align-items="center" background-color=(rule.skill == skills.selected ? "#eaecf0" : "transparent")
+                        column flex=1 min-width=0 gap=2
+                          text rule.pattern font-family="ui-monospace" font-size=12 font-weight=500
+                          text `→ ${rule.skill}.md` class=Tertiary
+                        button press=removeRule(rule.pattern) class=IconBtn width=24 height=24 aria-label=`Remove rule ${rule.pattern}`
+                          Icon(name="x", size=13, color="#687076")
+                    row gap=6 align-items="center"
+                      input value=newPattern input=setNewPattern autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="owner/repo*" class=Field flex=1 testId="new-pattern"
+                      input value=newSkill input=setNewSkill autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="skill" class=Field flex=1 testId="new-skill"
+                      button press=addRule class=OutlineSm height=30 disabled=(newPattern == "" or newSkill == "") testId="add-rule"
+                        Icon(name="plus", size=13, color="#11181c")
+                    match rules
+                      case some(r)
+                        when r.error != ""
+                          text r.error class=Error
+                      case none
+                        box
+                  box class=Divider
+                  column padding=16 padding-top=12 gap=8
+                    text "Test a repository" class=Tertiary
+                    input value=testRepo input=setTestRepo autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="expo/orbit" class=Field testId="test-repo"
+                    when testRepo != ""
+                      row gap=4 class=Secondary
+                        text "Uses"
+                        text `${testMatch.skill}.md` class=Mono
+                        text "via"
+                        text testMatch.pattern class=Mono
+                column flex=1 min-width=300 testId="skill-pane"
+                  row padding-top=12 padding-bottom=12 padding-left=20 padding-right=20 gap=10 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="#eaecf0"
+                    Icon(name="file-text", size=15, color="#687076")
+                    row gap=6 flex-wrap="wrap"
+                      each s in skills.skills key=s.name
+                        button press=selectSkill(s.name) class=(s.name == skills.selected ? ChipOn : Chip) testId=`skill-${s.name}`
+                          text `${s.name}.md`
                     when skillEditing
-                      textarea value=skillDraft input=changeSkill font-family="ui-monospace" font-size=12 line-height=1.75 height=320 width="100%" box-sizing="border-box" padding=12 border-style="solid" border-width=1 border-color="#e1e4e8" border-radius=8 background-color="#fbfcfd" color="#11181c" testId="skill-editor"
+                      text "EDITED" class=Tag background-color="rgb(255, 244, 194)" color="#8a6d00"
+                    text (skills.error != "" ? skills.error : skills.reachable ? `Used by ${skills.usedBy}` : "sidecar offline") class=(skills.reachable ? Tertiary : Error) flex=1 text-align="right" line-clamp=1
+                  when skills.selected != ""
+                    when skillEditing
+                      textarea value=skillDraft input=changeSkill font-family="ui-monospace" font-size=12 line-height=1.75 height=(wide ? 480 : 320) width="100%" box-sizing="border-box" padding=12 padding-left=14 border-width=0 background-color="#fbfcfd" color="#11181c" testId="skill-editor"
                     else
-                      column border-style="solid" border-width=1 border-color="#eaecf0" border-radius=8 background-color="#fbfcfd" padding-top=12 padding-bottom=12 overflow="hidden"
+                      column background-color="#fbfcfd" padding-top=12 padding-bottom=12 overflow="hidden" min-height=(wide ? 480 : 0)
                         each l in skills.lines key=l.n
                           row gap=0
-                            text `${l.n}` font-family="ui-monospace" font-size=12 line-height=1.75 color="#c9d1d9" width=40 text-align="right" padding-right=12 flex-shrink=0
-                            text l.text font-family="ui-monospace" font-size=12 line-height=1.75 color=(l.heading ? "#0072DE" : "#11181c") font-weight=(l.heading ? 600 : 400) white-space="pre" line-clamp=1 flex=1 min-width=0
-                    row gap=10 align-items="center"
+                            text `${l.n}` font-family="ui-monospace" font-size=12 line-height=1.75 color="#c9d1d9" width=44 text-align="right" padding-right=12 flex-shrink=0 border-right-style="solid" border-right-width=1 border-color="#eaecf0"
+                            text l.text font-family="ui-monospace" font-size=12 line-height=1.75 color=(l.heading ? "#0072DE" : "#11181c") font-weight=(l.heading ? 600 : 400) white-space="pre" line-clamp=1 flex=1 min-width=0 padding-left=14
+                    row gap=10 align-items="center" padding=12 padding-left=20 padding-right=20 border-top-style="solid" border-top-width=1 border-color="#e1e4e8" background-color="#f9fafb"
                       text skills.path class=Tertiary flex=1 line-clamp=1
                       when skillEditing
                         button press=revertSkill class=Ghost height=30 testId="revert-skill"
@@ -774,8 +795,9 @@ component Revu
                     match saved
                       case some(s)
                         when s.error != ""
-                          text s.error class=Error
+                          text s.error class=Error padding-left=20
                       case none
+                        box
                         box
 
 // Lucide icons (stroke 2, round caps), as in the design.

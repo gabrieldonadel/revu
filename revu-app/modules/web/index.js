@@ -47,6 +47,8 @@ export function call(request) {
   switch (request?.op) {
     case 'status': return { available: context.agent || typeof Notification !== 'undefined', permission: permission(), pending: state.pending.length };
     case 'drain': return { actions: drain() };
+    case 'tray': return { ok: false, reason: 'no menu bar on the web' };
+    case 'role': return { kind: 'popover' };
     default: throw new Error(`the notifier answers no call ${JSON.stringify(request?.op)}`);
   }
 }
@@ -86,6 +88,12 @@ export async function later(request) {
     }
     case 'drain':
       return { actions: drain() };
+    case 'tray':
+      return { ok: false, reason: 'no menu bar on the web' };
+    case 'role':
+      return { kind: 'popover' };
+    case 'window':
+      return { ok: false, reason: 'no windows on the web' };
     case 'simulate': {
       if (!context.agent) throw new Error("simulate is the agent's");
       deliver(String(request.id ?? ''), String(request.actionId ?? 'default'));

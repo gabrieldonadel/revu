@@ -7,8 +7,9 @@ A macOS app for reviewing GitHub pull requests, built on
 - **`revu-app/`** — the Exact2 app (`app.contract` UI, `app.ts` data: device-flow
   sign-in, GitHub polling, Keychain token, SQLite seen-state, PR details, skill
   rules, review jobs). The screens follow the Claude Design file "PR Review
-  Menu Bar" (LLP 0005). Notifications come from the app's own native module
-  (`revu-app/modules/`, LLP 0003); the menu bar item is still to come.
+  Menu Bar" (LLP 0005). Notifications and the menu bar item come from the
+  app's own native module (`revu-app/modules/`, LLP 0003, LLP 0006): the
+  bundled app lives in the menu bar and its window is the popover.
 - **`sidecar/`** — Bun daemon for the AI-review runner (M5).
 
 ## Run
