@@ -45,3 +45,16 @@ poll is `pending`. Not yet explained; the app survives it. Investigate whether
 the first tick can observe a stale `device` slot across the mutation's
 `refreshes session`.
 
+## Dev-loop note (2026-09-30)
+
+On a machine with no Apple Development identity, every rebuild is ad-hoc
+signed and macOS treats it as a new application: reading a Keychain item the
+previous build wrote raises the "ExactMac wants to use your confidential
+information" prompt, and because the store is read on every poll, one
+denied prompt is followed by another. Two workable answers: install an
+identity and set `EXACT_IDENTITY` so the ACL survives rebuilds, or delete the
+app's items (`security delete-generic-password -s ExactMac`) and sign in
+again after a rebuild. Worth raising with exact2 as a dev-loop paper cut:
+the runner's kept answers (`exact.kept.*`) live in the same Keychain service
+and multiply the prompts.
+
