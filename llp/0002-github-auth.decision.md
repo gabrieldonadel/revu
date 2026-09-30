@@ -53,7 +53,8 @@ previous build wrote raises the "ExactMac wants to use your confidential
 information" prompt, and because the store is read on every poll, one
 denied prompt is followed by another. Two workable answers: install an
 identity and set `EXACT_IDENTITY` so the ACL survives rebuilds, or delete the
-app's items (`security delete-generic-password -s ExactMac`) and sign in
+app's items (`security delete-generic-password -s ExactMac` for the bare
+binary, `-s dev.donadel.revu` for `revu.app`) and sign in
 again after a rebuild. Worth raising with exact2 as a dev-loop paper cut:
 the runner's kept answers (`exact.kept.*`) live in the same Keychain service
 and multiply the prompts.

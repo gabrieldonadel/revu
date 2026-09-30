@@ -12,10 +12,10 @@
     "macos": {
       "minimumOS": "14.0",
       "window": {
-        "width": 760,
-        "height": 560,
-        "minWidth": 520,
-        "minHeight": 400
+        "width": 440,
+        "height": 640,
+        "minWidth": 400,
+        "minHeight": 560
       }
     },
     "web": {}

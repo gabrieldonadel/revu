@@ -1,7 +1,7 @@
 // @ref LLP 0001#sidecar-split — the one thing the app cannot do: run git and
 // an agent. A review is a job: check the PR out into a worktree, load the
 // selected skill, run the runner, stream its output, keep the result.
-import { mkdirSync, existsSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { paths } from './config.ts';
@@ -32,7 +32,7 @@ export interface ReviewJob {
 export interface Runner {
   name: string;
   /** Runs the review in `worktree`, calling `onChunk` as output arrives; resolves with the final text. */
-  run(input: { worktree: string; prompt: string; skill: string; onChunk: (text: string) => void }): Promise<string>;
+  run(input: { worktree: string; prompt: string; skill: string; signal: AbortSignal; onChunk: (text: string) => void }): Promise<string>;
 }
 
 const skillDirs = [
@@ -55,6 +55,23 @@ export function listSkills(): Array<{ name: string; path: string; description: s
     }
   }
   return out;
+}
+
+/** The skill's text and where it lives; the user directory shadows the bundled one. */
+export function readSkill(name: string): { name: string; path: string; content: string } {
+  const skill = listSkills().find((s) => s.name === name);
+  if (!skill) throw new Error(`no skill named ${name}`);
+  return { name, path: skill.path, content: readFileSync(skill.path, 'utf8') };
+}
+
+/** Writes go to the user directory only, so a bundled skill is shadowed, never edited in place. */
+export function writeSkill(name: string, content: string): { name: string; path: string } {
+  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(name)) throw new Error(`not a skill name: ${name}`);
+  const dir = resolve(skillDirs[0]!, name);
+  mkdirSync(dir, { recursive: true });
+  const path = resolve(dir, 'SKILL.md');
+  writeFileSync(path, content);
+  return { name, path };
 }
 
 export function loadSkill(name = 'pr-review'): string {
@@ -129,6 +146,20 @@ export function getJob(id: string): ReviewJob | undefined {
   return jobs.get(id);
 }
 
+/** A cancel marks the job failed; a runner that honours `signal` stops. */
+export function cancelJob(id: string): ReviewJob | undefined {
+  const job = jobs.get(id);
+  if (!job) return undefined;
+  if (job.status === 'done' || job.status === 'failed') return job;
+  job.status = 'failed';
+  job.error = 'cancelled';
+  job.finishedAt = new Date().toISOString();
+  controllers.get(id)?.abort();
+  return job;
+}
+
+const controllers = new Map<string, AbortController>();
+
 export function listJobs(): ReviewJob[] {
   return [...jobs.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
@@ -145,6 +176,8 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
     worktree: null,
   };
   jobs.set(job.id, job);
+  const controller = new AbortController();
+  controllers.set(job.id, controller);
   void (async () => {
     try {
       job.status = 'checking-out';
@@ -158,17 +191,22 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
         worktree: job.worktree,
         prompt,
         skill: request.skill ?? 'pr-review',
+        signal: controller.signal,
         onChunk: (text) => {
           job.output += text;
           onChange(job);
         },
       });
       if (final && !job.output) job.output = final;
-      job.status = 'done';
+      // A cancel may have flipped the status while the runner was running.
+      if ((job.status as ReviewJob['status']) !== 'failed') job.status = 'done';
     } catch (error) {
-      job.status = 'failed';
-      job.error = error instanceof Error ? error.message : String(error);
+      if ((job.status as ReviewJob['status']) !== 'failed') {
+        job.status = 'failed';
+        job.error = error instanceof Error ? error.message : String(error);
+      }
     } finally {
+      controllers.delete(job.id);
       job.finishedAt = new Date().toISOString();
       onChange(job);
     }

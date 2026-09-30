@@ -1,10 +1,15 @@
-// revu — GitHub review requests, on exact2 (windowed first; the menu bar item
-// and notifications are capability asks, LLP 0003 in this repo's llp/).
-// The data is app.ts: device-flow sign-in, polling, and seen-state.
+// revu — GitHub review requests, on exact2. The screens follow the Claude
+// Design file "PR Review Menu Bar" (1a onboarding, 1b pending list, 1c quick
+// look, 1d review in progress, 1e results, 1f skill settings) on the Expo
+// design-system tokens; the window is sized like the design's popover.
+// The data is app.ts: device-flow sign-in, polling, seen-state, PR details,
+// skill rules, and the sidecar's review jobs.
 
 routes nav
-  tab home "/"
-  notfound
+  inbox "/"
+    pr "/pr/:owner/:name/:number"
+      review "/pr/:owner/:name/:number/review"
+    settings "/settings"
 
 shape Time
   epochAtZero: number
@@ -31,6 +36,8 @@ shape Grant
 
 shape Review
   id: string
+  owner: string
+  name: string
   repo: string
   number: number
   title: string
@@ -39,15 +46,117 @@ shape Review
   requestedAt: string
   age: string
   unread: bool
+  team: string
+  ci: string
+  ciLabel: string
 
 shape Inbox
   ready: bool
   login: string
   unread: number
   total: number
+  mineCount: number
+  teamCount: number
   polledAt: string
   error: string
-  reviews: list<Review>
+  mine: list<Review>
+  team: list<Review>
+
+shape ChangedFile
+  path: string
+  additions: number
+  deletions: number
+
+shape PrDetail
+  ready: bool
+  id: string
+  repo: string
+  number: number
+  title: string
+  url: string
+  author: string
+  baseRef: string
+  headRef: string
+  headSha: string
+  baseSha: string
+  ci: string
+  ciLabel: string
+  files: number
+  additions: number
+  deletions: number
+  changed: list<ChangedFile>
+  body: string
+  skill: string
+  skillRule: string
+  error: string
+
+shape Started
+  stamp: number
+  id: string
+  error: string
+
+shape Finding
+  index: number
+  sev: string
+  loc: string
+  title: string
+  body: string
+
+shape Job
+  ready: bool
+  id: string
+  status: string
+  skill: string
+  step: number
+  progress: number
+  elapsed: string
+  log: list<string>
+  summary: string
+  findings: list<Finding>
+  error: string
+
+shape Cancelled
+  stamp: number
+  ok: bool
+
+shape Rule
+  pattern: string
+  skill: string
+
+shape SkillFile
+  name: string
+  path: string
+  description: string
+  usedBy: string
+
+shape SkillLine
+  n: number
+  text: string
+  heading: bool
+
+shape SkillSettings
+  reachable: bool
+  rules: list<Rule>
+  skills: list<SkillFile>
+  selected: string
+  usedBy: string
+  path: string
+  content: string
+  lines: list<SkillLine>
+  error: string
+
+shape RulesResult
+  stamp: number
+  error: string
+
+shape SavedSkill
+  stamp: number
+  ok: bool
+  error: string
+
+shape SkillMatch
+  skill: string
+  pattern: string
 
 shape SidecarStatus
   reachable: bool
@@ -72,24 +181,100 @@ shape Seen
   stamp: number
   id: string
 
-style Page
-  width="100%" max-width=760 margin-left="auto" margin-right="auto" padding=24 box-sizing="border-box"
-style Title
-  font-size=28 font-weight=700
-style Muted
-  color="#6b7280" font-size=13
-style Btn
-  padding-top=8 padding-bottom=8 padding-left=14 padding-right=14 border-radius=8 border-style="solid" border-width=1 border-color="#111827" background-color="#111827" color="#ffffff" font-size=14
-style BtnGhost
-  padding-top=6 padding-bottom=6 padding-left=10 padding-right=10 border-radius=8 border-style="solid" border-width=1 border-color="#d1d5db" background-color="transparent" color="#111827" font-size=13
+// --- Expo design-system tokens (colors_and_type.css, light) ---------------
+// fg-default #11181c · fg-secondary #596068 · fg-tertiary #687076 ·
+// fg-disabled #c9d1d9 · border-default #e1e4e8 · border-subtle #eaecf0 ·
+// border-strong #d7dbdf · bg-subtle #f9fafb · bg-element #f5f5f7 ·
+// bg-hover #f0f1f2 · bg-active #eaecf0 · gray-900 #11181c · gray-400 #c9d1d9
+
+style Surface
+  width="100%" height="100%" box-sizing="border-box" background-color="#ffffff" color="#11181c" font-family="system-ui" font-size=13
+
+style Header
+  padding-top=14 padding-right=16 padding-bottom=10 padding-left=16 justify-content="space-between" align-items="center"
+
+style HeaderTitle
+  font-size=15 font-weight=600
+
+style IconBtn
+  display="flex" flex-direction="row" width=28 height=28 border-radius=6 align-items="center" justify-content="center" background-color="transparent" border-width=0 padding=0
+
+style Chip
+  display="flex" flex-direction="row" height=26 padding-left=10 padding-right=10 border-radius=6 font-size=12 font-weight=500 color="#596068" align-items="center" gap=6 background-color="transparent" border-width=0
+
+style ChipOn
+  display="flex" flex-direction="row" height=26 padding-left=10 padding-right=10 border-radius=6 font-size=12 font-weight=500 color="#11181c" align-items="center" gap=6 background-color="#eaecf0" border-width=0
+
+style Divider
+  height=1 background-color="#eaecf0" width="100%"
+
+style SectionLabel
+  font-size=11 letter-spacing=0.9 text-transform="uppercase" color="#687076" font-weight=600
+
+style Mono
+  font-family="ui-monospace" font-size=12
+
+style MonoLabel
+  font-family="ui-monospace" font-size=12 color="#687076"
+
+style Secondary
+  font-size=12 color="#596068"
+
+style Tertiary
+  font-size=12 color="#687076"
+
+style Primary
+  display="flex" flex-direction="row" height=36 border-radius=6 background-color="#11181c" color="#ffffff" font-size=14 font-weight=500 align-items="center" justify-content="center" gap=8 border-width=0 padding-left=14 padding-right=14
+
+style PrimarySm
+  display="flex" flex-direction="row" height=32 border-radius=6 background-color="#11181c" color="#ffffff" font-size=13 font-weight=500 align-items="center" justify-content="center" gap=6 border-width=0 padding-left=14 padding-right=14
+
+style Outline
+  display="flex" flex-direction="row" height=32 padding-left=12 padding-right=12 border-radius=6 border-style="solid" border-width=1 border-color="#e1e4e8" background-color="#ffffff" font-size=13 font-weight=500 color="#11181c" align-items="center" justify-content="center" gap=6
+
+style OutlineSm
+  display="flex" flex-direction="row" height=26 padding-left=8 padding-right=8 border-radius=6 border-style="solid" border-width=1 border-color="#e1e4e8" background-color="#ffffff" font-size=12 font-weight=500 color="#11181c" align-items="center" justify-content="center" gap=5 flex-shrink=0
+
+style Ghost
+  display="flex" flex-direction="row" height=32 padding-left=12 padding-right=12 border-radius=6 font-size=13 font-weight=500 color="#596068" align-items="center" justify-content="center" background-color="transparent" border-width=0
+
+style Field
+  height=30 border-style="solid" border-width=1 border-color="#e1e4e8" border-radius=6 padding-left=10 padding-right=10 font-family="ui-monospace" font-size=12 color="#11181c" background-color="#ffffff" width="100%" box-sizing="border-box"
+
 style Card
-  padding=12 border-radius=10 background-color="#f3f4f6" margin-bottom=8 width="100%" box-sizing="border-box"
-style Code
-  font-size=40 font-weight=700 letter-spacing=4
+  border-style="solid" border-width=1 border-color="#e1e4e8" background-color="#f9fafb" border-radius=8 padding=12 gap=6
+
+style Row
+  display="flex" flex-direction="row" gap=12 padding-top=10 padding-right=16 padding-bottom=10 padding-left=16 align-items="flex-start" width="100%" box-sizing="border-box" background-color="transparent" border-width=0 text-align="left"
+
+style Dot
+  width=8 height=8 border-radius=9999 margin-top=6 flex-shrink=0
+
+style Error
+  font-size=12 color="rgb(207, 34, 46)"
+
+style Tag
+  font-size=10 font-weight=600 letter-spacing=0.6 padding-top=1 padding-bottom=1 padding-left=6 padding-right=6 border-radius=4
+
+style Tab
+  display="flex" flex-direction="row" height=28 padding-left=12 padding-right=12 border-radius=6 align-items="center" justify-content="center" font-size=12 font-weight=500 color="#596068" background-color="transparent" border-width=0
+
+style TabOn
+  display="flex" flex-direction="row" height=28 padding-left=12 padding-right=12 border-radius=6 align-items="center" justify-content="center" font-size=12 font-weight=500 color="#11181c" background-color="#eaecf0" border-width=0
 
 component Revu
   state tick = 0
   state nowMs = 0
+  state pollMs = 0
+  state filter = "all"
+  state settingsTab = "skills"
+  state testRepo = ""
+  state newPattern = ""
+  state newSkill = ""
+  state skillDraft = ""
+  state skillEditing = false
+  state selectedSkill = ""
+  state selectedFinding = 0
 
   // @ref exact2 LLP 1027.000.000 — the date is a host fact; now() is ms since launch.
   resource time = exactTime() as shape Time
@@ -99,7 +284,12 @@ component Revu
   // Re-asked when the module announces a user's answer; the inbox depends on
   // its stamp so a "Mark read" from a banner shows at once.
   resource actions = notificationActions(nowMs) as shape Actions
-  resource inbox = reviewRequests(session.login, nowMs, actions.stamp) as shape Inbox
+  // pollMs moves once a minute (and on Refresh), not every clock tick.
+  resource inbox = reviewRequests(session.login, pollMs, time.epochAtZero, actions.stamp) as shape Inbox
+  resource detail = prDetail(top(nav).params.owner, top(nav).params.name, top(nav).params.number, rulesStamp) as shape PrDetail
+  resource job = reviewJob(jobId, tick, time.epochAtZero) as shape Job
+  resource skills = skillSettings(selectedSkill, rulesStamp, savedStamp) as shape SkillSettings
+  resource testMatch = matchSkill(testRepo, rulesStamp) as shape SkillMatch
 
   mutation device as shape DeviceCode refreshes session
   mutation grant as shape Grant refreshes session, inbox
@@ -107,9 +297,21 @@ component Revu
   mutation signout as shape Session refreshes session, inbox
   mutation permission as shape NotifyStatus refreshes notifications
   mutation announced as shape Announced
+  mutation started as shape Started
+  mutation cancelled as shape Cancelled
+  mutation rules as shape RulesResult
+  mutation saved as shape SavedSkill
 
   derive signedIn = session.signedIn
   derive granted = match grant { case some(g) => g.status == "ok", case none => false }
+  derive jobId = match started { case some(s) => s.id, case none => "" }
+  derive rulesStamp = match rules { case some(r) => r.stamp, case none => 0 }
+  derive savedStamp = match saved { case some(s) => s.stamp, case none => 0 }
+  derive screen = top(nav).name
+  derive prOwner = top(nav).params.owner
+  derive prName = top(nav).params.name
+  derive prNumber = top(nav).params.number
+  derive reviewing = job.status == "queued" or job.status == "checking-out" or job.status == "running"
 
   action startSignIn writes device, grant, nowMs
     nowMs = time.epochAtZero + now()
@@ -118,26 +320,77 @@ component Revu
   action cancelSignIn writes device, grant
     device = none
     grant = none
-  action doSignOut writes signout, device, grant
+  action doSignOut writes signout, device, grant, nav
     device = none
     grant = none
+    nav = open(nav, "/")
     send signout = signOut()
   action markRead(id: string) writes seen
     send seen = markSeen(id)
-  action refreshNow writes nowMs, announced
+  action refreshNow writes nowMs, pollMs, announced
     nowMs = time.epochAtZero + now()
-    refresh inbox
+    pollMs = nowMs
     send announced = announceNew(nowMs)
   action askPermission writes permission
     send permission = requestNotificationPermission()
+  action setFilter(f: string) writes filter
+    filter = f
+  // Opening a request reads it; the banner's "Mark read" does the same.
+  action openPr(id: string, owner: string, name: string, number: string) writes nav, seen, selectedFinding
+    selectedFinding = 0
+    send seen = markSeen(id)
+    nav = push(nav, path("pr", owner, name, number))
+  action goBack writes nav
+    nav = back(nav)
+  action openSettings writes nav, testRepo
+    nav = push(nav, "/settings")
+  action setSettingsTab(t: string) writes settingsTab
+    settingsTab = t
+  action runReview writes started, nav, selectedFinding
+    selectedFinding = 0
+    send started = startReview(detail.id, detail.skill)
+    nav = push(nav, path("review", prOwner, prName, prNumber))
+  action cancelReview writes cancelled, nav
+    send cancelled = cancelReview(jobId)
+    nav = back(nav)
+  action selectFinding(i: number) writes selectedFinding
+    selectedFinding = i
+  action setTestRepo(v: string) writes testRepo
+    testRepo = v
+  action setNewPattern(v: string) writes newPattern
+    newPattern = v
+  action setNewSkill(v: string) writes newSkill
+    newSkill = v
+  action addRule writes rules, newPattern, newSkill
+    send rules = addRule(newPattern, newSkill)
+    newPattern = ""
+    newSkill = ""
+  action removeRule(pattern: string) writes rules
+    send rules = removeRule(pattern)
+  action selectSkill(name: string) writes selectedSkill, skillEditing, skillDraft
+    selectedSkill = name
+    skillEditing = false
+    skillDraft = ""
+  action editSkill writes skillEditing, skillDraft
+    skillEditing = true
+    skillDraft = skills.content
+  action changeSkill(v: string) writes skillDraft
+    skillDraft = v
+  action revertSkill writes skillEditing, skillDraft
+    skillEditing = false
+    skillDraft = ""
+  action saveSkill writes saved, skillEditing
+    send saved = saveSkill(skills.selected, skillDraft)
+    skillEditing = false
   // One 5s clock: while a device code is out and not yet granted, poll the
-  // grant; once signed in, refresh the inbox every 12th tick (60s).
-  action clock writes tick, grant, nowMs, announced
+  // grant; once signed in, poll the inbox every 12th tick (60s) and announce
+  // what is new on the tick after.
+  action clock writes tick, grant, nowMs, pollMs, announced
     tick = tick + 1
     nowMs = time.epochAtZero + now()
     if signedIn
       if tick % 12 == 0
-        refresh inbox
+        pollMs = nowMs
       if tick % 12 == 1
         send announced = announceNew(nowMs)
     else
@@ -152,61 +405,432 @@ component Revu
     every(5000, clock)
 
   view
-    column class=Page
+    main testId="revu" navigationKey=`${top(nav).id}` navigationBack="goBack" class=Surface display="flex" flex-direction="column" overflow="hidden"
       revu-notifier width=0 height=0 testId="notifier"
-      row justify-content="space-between" align-items="center"
-        text "revu" class=Title testId="title"
-        text signedIn ? `${inbox.unread} unread · ${inbox.total} pending` : "not signed in" class=Muted testId="summary"
 
+      // ---- 1a Onboarding — connect GitHub ------------------------------
       when not signedIn
-        match device
-          case some(d)
-            column gap=8 testId="device-code"
-              text "Enter this code on GitHub:" class=Muted
-              text d.userCode class=Code testId="user-code"
-              link href=d.verificationUri color="#2563eb" font-size=13 testId="verification-link"
-                text d.verificationUri
-              when d.error != ""
-                text d.error color="#b91c1c" font-size=13 testId="device-error"
-              match grant
-                case some(g)
-                  text g.status == "ok" ? `Signed in as ${g.login}` : g.error != "" ? g.error : "Waiting for approval…" class=Muted testId="grant-status"
-                case none
-                  text "Waiting for approval…" class=Muted testId="grant-status"
-              button press=cancelSignIn class=BtnGhost testId="cancel-sign-in"
-                text "Cancel"
-          case none
-            column gap=8
-              text "Sign in to see the pull requests waiting for your review." class=Muted
-              button press=startSignIn class=Btn testId="sign-in"
-                text "Sign in with GitHub"
-              when session.error != ""
-                text session.error color="#b91c1c" font-size=13 testId="error"
+        column padding-top=32 padding-right=28 padding-bottom=24 padding-left=28 gap=24 testId="onboarding"
+          column width=48 height=48 border-radius=12 background-color="#11181c" align-items="center" justify-content="center"
+            Icon(name="git-pull-request", size=24, color="#ffffff")
+          column gap=8
+            text "Connect your GitHub account" font-size=20 font-weight=600 letter-spacing=-0.25 testId="title"
+            text "revu watches for review requests addressed to you and your teams, and runs AI reviews using the skill file mapped to each repository." font-size=14 line-height=1.5 color="#596068"
+          column gap=12
+            row gap=10 align-items="center"
+              column width=20 height=20 border-radius=9999 background-color="#11181c" align-items="center" justify-content="center"
+                text "1" font-size=11 font-weight=600 color="#ffffff"
+              text "Sign in with GitHub" font-size=13 font-weight=500
+            row gap=10 align-items="center"
+              column width=20 height=20 border-radius=9999 border-style="solid" border-width=1 border-color="#d7dbdf" align-items="center" justify-content="center"
+                text "2" font-size=11 font-weight=600 color="#596068"
+              text "Choose teams to watch" font-size=13 color="#596068"
+            row gap=10 align-items="center"
+              column width=20 height=20 border-radius=9999 border-style="solid" border-width=1 border-color="#d7dbdf" align-items="center" justify-content="center"
+                text "3" font-size=11 font-weight=600 color="#596068"
+              text "Add a default review skill" font-size=13 color="#596068"
+          column gap=12
+            match device
+              case some(d)
+                column class=Card testId="device-code"
+                  text "Enter this code at github.com/login/device" class=Tertiary
+                  text d.userCode font-family="ui-monospace" font-size=18 font-weight=600 letter-spacing=2 testId="user-code"
+                  link href=d.verificationUri color="#0072DE" font-size=12 testId="verification-link"
+                    text "Open github.com/login/device ↗"
+                  when d.error != ""
+                    text d.error class=Error testId="device-error"
+                  match grant
+                    case some(g)
+                      text g.status == "ok" ? `Signed in as ${g.login}` : g.error != "" ? g.error : "Waiting for approval…" class=Tertiary testId="grant-status"
+                    case none
+                      text "Waiting for approval…" class=Tertiary testId="grant-status"
+                button press=cancelSignIn class=Ghost testId="cancel-sign-in"
+                  text "Cancel"
+              case none
+                button press=startSignIn class=Primary testId="sign-in"
+                  Icon(name="log-in", size=16, color="#ffffff")
+                  text "Continue with GitHub"
+                column class=Card
+                  text "You get a one-time code to enter at github.com/login/device." class=Tertiary
+                when session.error != ""
+                  text session.error class=Error testId="error"
+          text "Requests the notifications, repo and read:user scopes. The token is stored in the macOS Keychain." font-size=12 line-height=1.5 color="#687076"
 
-      when signedIn
-        column gap=8
-          row gap=8 align-items="center"
-            text `Signed in as ${session.login} · polled ${inbox.polledAt}` class=Muted testId="signed-in-as"
-            button press=refreshNow class=BtnGhost testId="refresh"
-              text pending(inbox) ? "Refreshing…" : "Refresh"
-            button press=doSignOut class=BtnGhost testId="sign-out"
-              text "Sign out"
-          when inbox.error != ""
-            text inbox.error color="#b91c1c" font-size=13 testId="error"
-          text sidecar.reachable ? `AI review: sidecar ready · runner ${sidecar.runner}` : "AI review: sidecar offline" class=Muted testId="sidecar-status"
-          row gap=8 align-items="center"
-            text notifications.available ? `Notifications: ${notifications.permission}` : "Notifications: unavailable here" class=Muted testId="notification-status"
-            when notifications.available and notifications.permission != "granted"
-              button press=askPermission class=BtnGhost testId="ask-permission"
+      // ---- 1b Popover — pending requests --------------------------------
+      when signedIn and screen == "inbox"
+        column flex=1 min-height=0 testId="inbox-screen"
+          row class=Header
+            text "Review requests" class=HeaderTitle testId="title"
+            row gap=4
+              button press=refreshNow class=IconBtn testId="refresh" aria-label="Refresh"
+                Icon(name="refresh", size=15, color=(pending(inbox) ? "#c9d1d9" : "#596068"))
+              button press=openSettings class=IconBtn testId="open-settings" aria-label="Settings"
+                Icon(name="settings", size=15, color="#596068")
+          row padding-left=16 padding-right=16 padding-bottom=10 gap=4
+            button press=setFilter("all") class=(filter == "all" ? ChipOn : Chip) testId="filter-all"
+              text "All"
+              text `${inbox.total}` color="#687076"
+            button press=setFilter("mine") class=(filter == "mine" ? ChipOn : Chip) testId="filter-mine"
+              text "You"
+              text `${inbox.mineCount}` color="#687076"
+            button press=setFilter("teams") class=(filter == "teams" ? ChipOn : Chip) testId="filter-teams"
+              text "Teams"
+              text `${inbox.teamCount}` color="#687076"
+          box class=Divider
+          when notifications.available and notifications.permission != "granted"
+            row padding-left=16 padding-right=16 padding-top=8 padding-bottom=8 gap=8 align-items="center" background-color="#f9fafb"
+              text "Get a banner when a review is requested." class=Secondary flex=1
+              button press=askPermission class=OutlineSm testId="ask-permission"
                 text "Allow notifications"
-          when inbox.ready and inbox.total == 0
-            text "No pending review requests." class=Muted testId="empty"
-          each r in inbox.reviews key=r.id
-            column class=Card testId=`pr-${r.id}`
-              row justify-content="space-between" align-items="center"
-                link href=r.url color="#111827" font-size=15 font-weight=r.unread ? 600 : 400
-                  text `${r.unread ? "● " : ""}${r.repo}#${r.number} — ${r.title}`
-                when r.unread
-                  button press=markRead(r.id) class=BtnGhost
-                    text "Mark read"
-              text `${r.author} · requested ${r.age}` class=Muted
+            box class=Divider
+          when inbox.error != ""
+            text inbox.error class=Error padding-left=16 padding-right=16 padding-top=8 testId="error"
+          scroll flex=1 min-height=0
+            column padding-bottom=6
+              when filter != "teams"
+                text "Requested from you" class=SectionLabel padding-top=10 padding-left=16 padding-right=16 padding-bottom=4
+                each r in inbox.mine key=r.id
+                  ReviewRow(r=r, press=openPr(r.id, r.owner, r.name, `${r.number}`))
+                when inbox.ready and inbox.mineCount == 0
+                  text "Nothing waiting on you." class=Tertiary padding-left=16 padding-top=6 padding-bottom=6 testId="empty-mine"
+              when filter != "mine"
+                text "Requested from teams" class=SectionLabel padding-top=12 padding-left=16 padding-right=16 padding-bottom=4
+                each r in inbox.team key=r.id
+                  ReviewRow(r=r, press=openPr(r.id, r.owner, r.name, `${r.number}`))
+                when inbox.ready and inbox.teamCount == 0
+                  text "No team requests." class=Tertiary padding-left=16 padding-top=6 padding-bottom=6 testId="empty-team"
+              when not inbox.ready
+                text "Loading review requests…" class=Tertiary padding-left=16 padding-top=6 testId="loading"
+          box class=Divider
+          row padding-top=10 padding-right=16 padding-bottom=10 padding-left=16 justify-content="space-between" align-items="center"
+            text (inbox.ready ? `Synced ${inbox.polledAt} · ${session.login}` : "Syncing…") class=Tertiary testId="synced"
+            link href="https://github.com/pulls/review-requested" color="#687076" font-size=12
+              text "Open on GitHub ↗"
+
+      // ---- 1c Popover — PR quick look -----------------------------------
+      when signedIn and screen == "pr"
+        column flex=1 min-height=0 testId="pr-screen"
+          row padding-top=12 padding-right=12 padding-bottom=8 padding-left=12 gap=6 align-items="center"
+            button press=goBack class=IconBtn testId="back" aria-label="Back"
+              Icon(name="chevron-left", size=16, color="#596068")
+            text `${prOwner}/${prName} #${prNumber}` class=MonoLabel flex=1
+            link href=detail.url color="#596068" font-size=13 padding-right=4 testId="open-on-github"
+              text "↗"
+          scroll flex=1 min-height=0
+            column
+              column padding-left=16 padding-right=16 padding-bottom=14 gap=10
+                text (detail.ready ? detail.title : "Loading…") font-size=16 font-weight=600 line-height=1.35 letter-spacing=-0.15 testId="pr-title"
+                when detail.ready
+                  row gap=8 align-items="center"
+                    box width=18 height=18 border-radius=9999 background-color="#d7dbdf"
+                    text `${detail.author} wants to merge ${detail.headRef} into ${detail.baseRef}` class=Secondary line-clamp=1
+                when detail.error != ""
+                  text detail.error class=Error testId="pr-error"
+              box class=Divider
+              column padding=16 padding-top=12 padding-bottom=12 gap=8
+                row gap=16 align-items="center"
+                  text "Checks" class=Tertiary width=56
+                  row gap=6 align-items="center"
+                    box width=8 height=8 border-radius=9999 background-color=(detail.ci == "pass" ? "rgb(9, 141, 72)" : detail.ci == "fail" ? "rgb(207, 34, 46)" : detail.ci == "run" ? "rgb(255, 138, 76)" : "#c9d1d9")
+                    text detail.ciLabel font-size=12 testId="pr-checks"
+                row gap=16 align-items="center"
+                  text "Changes" class=Tertiary width=56
+                  row gap=4 class=Mono
+                    text `${detail.files} files ·`
+                    text `+${detail.additions}` color="rgb(9, 141, 72)"
+                    text `−${detail.deletions}` color="rgb(207, 34, 46)"
+                row gap=16 align-items="center"
+                  text "Skill" class=Tertiary width=56
+                  row gap=6 align-items="center"
+                    Icon(name="file-text", size=13, color="#687076")
+                    text `${detail.skill}.md` class=Mono
+                    text `· matched ${detail.skillRule}` class=Tertiary testId="pr-skill"
+              box class=Divider
+              column padding=16 padding-top=12 padding-bottom=12 gap=6
+                text "Files" class=SectionLabel
+                each f in detail.changed key=f.path
+                  row justify-content="space-between" gap=12 class=Mono line-height=1.6
+                    text f.path color="#596068" line-clamp=1 flex=1 min-width=0
+                    row gap=4 flex-shrink=0
+                      text `+${f.additions}` color="rgb(9, 141, 72)"
+                      text `−${f.deletions}` color="rgb(207, 34, 46)"
+                when detail.ready and detail.files > length(detail.changed)
+                  text `… and ${detail.files - length(detail.changed)} more` class=Tertiary
+              box class=Divider
+              column padding=16 padding-top=12 padding-bottom=12 gap=6
+                text "Description" class=SectionLabel
+                text (detail.body == "" ? "(no description)" : detail.body) font-size=13 line-height=1.5 color="#596068" line-clamp=12 testId="pr-body"
+          box class=Divider
+          row padding=12 padding-left=16 padding-right=16 gap=8
+            button press=runReview class=PrimarySm flex=1 disabled=(not detail.ready or not sidecar.reachable) testId="run-review"
+              Icon(name="sparkles", size=14, color="#ffffff")
+              text (sidecar.reachable ? "Run AI review" : "Sidecar offline")
+            link href=`${detail.url}/files` class=Outline testId="open-diff"
+              text "Open diff"
+
+      // ---- 1d / 1e Popover — AI review in progress, then the results -----
+      when signedIn and screen == "review"
+        column flex=1 min-height=0 testId="review-screen"
+          row padding-top=12 padding-right=12 padding-bottom=8 padding-left=12 gap=6 align-items="center"
+            button press=goBack class=IconBtn testId="back" aria-label="Back"
+              Icon(name="chevron-left", size=16, color="#596068")
+            text `${prOwner}/${prName} #${prNumber}` class=MonoLabel flex=1
+            when job.ready
+              row gap=6 align-items="center"
+                Icon(name="file-text", size=13, color="#687076")
+                text `${job.skill}.md · ${job.elapsed}` class=Tertiary
+          when not job.ready
+            column padding=16 gap=6
+              text "Starting the review…" font-size=16 font-weight=600
+              match started
+                case some(s)
+                  when s.error != ""
+                    text s.error class=Error testId="start-error"
+                case none
+                  text "Asking the sidecar." class=Secondary
+          when job.ready and reviewing
+            column flex=1 min-height=0
+              column padding-left=16 padding-right=16 padding-bottom=16 gap=6
+                text `Reviewing with ${job.skill}.md` font-size=16 font-weight=600 letter-spacing=-0.15 testId="review-title"
+                text "You can go back to the list. You'll get a notification when the review is ready." class=Secondary
+              column padding-left=16 padding-right=16 padding-bottom=16
+                box height=4 border-radius=9999 background-color="#eaecf0" overflow="hidden" width="100%"
+                  box height=4 border-radius=9999 background-color="#11181c" width=`${job.progress}%`
+              box class=Divider
+              column padding=16 padding-top=12 padding-bottom=12 gap=10
+                row gap=10 align-items="center"
+                  box width=14 height=14 border-radius=9999 background-color=(job.step > 0 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 0 ? "rgb(9, 141, 72)" : "#d7dbdf")
+                  text "Queued with the sidecar" flex=1 color=(job.step > 0 ? "#596068" : "#11181c")
+                row gap=10 align-items="center"
+                  box width=14 height=14 border-radius=9999 background-color=(job.step > 1 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 1 ? "rgb(9, 141, 72)" : job.step == 1 ? "#11181c" : "#d7dbdf")
+                  text "Checking out the pull request" flex=1 color=(job.step > 1 ? "#596068" : job.step == 1 ? "#11181c" : "#687076")
+                row gap=10 align-items="center"
+                  box width=14 height=14 border-radius=9999 background-color=(job.step > 2 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 2 ? "rgb(9, 141, 72)" : job.step == 2 ? "#11181c" : "#d7dbdf")
+                  text `Loaded skill ${job.skill}.md` flex=1 color=(job.step > 2 ? "#596068" : job.step == 2 ? "#11181c" : "#687076")
+                row gap=10 align-items="center"
+                  box width=14 height=14 border-radius=9999 background-color=(job.step > 3 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 3 ? "rgb(9, 141, 72)" : job.step == 3 ? "#11181c" : "#d7dbdf")
+                  text "Reviewing changes" flex=1 color=(job.step > 3 ? "#596068" : job.step == 3 ? "#11181c" : "#687076")
+                row gap=10 align-items="center"
+                  box width=14 height=14 border-radius=9999 background-color="#ffffff" border-style="solid" border-width=1.5 border-color=(job.step == 4 ? "#11181c" : "#d7dbdf")
+                  text "Drafting comments" flex=1 color=(job.step == 4 ? "#11181c" : "#687076")
+              column background-color="#11181c" padding=12 padding-left=16 padding-right=16 gap=2 min-height=64
+                each line in job.log key=line
+                  text line font-family="ui-monospace" font-size=11 line-height=1.7 color="#c9d1d9" line-clamp=1
+                when length(job.log) == 0
+                  text "waiting for output…" font-family="ui-monospace" font-size=11 line-height=1.7 color="#687076"
+              box class=Divider
+              row padding=12 padding-left=16 padding-right=16 justify-content="space-between" align-items="center"
+                text `Elapsed ${job.elapsed}` class=Tertiary testId="elapsed"
+                button press=cancelReview class=Outline height=28 testId="cancel-review"
+                  text "Cancel"
+          when job.ready and job.status == "failed"
+            column padding=16 gap=8 testId="review-failed"
+              text "The review did not run" font-size=16 font-weight=600
+              text job.error class=Error
+              text "The runner is chosen in LLP 0004; until then the sidecar has nothing to run the skill with." class=Secondary
+              button press=goBack class=Outline align-self="flex-start"
+                text "Back"
+          when job.ready and job.status == "done"
+            column flex=1 min-height=0 testId="review-results"
+              scroll flex=1 min-height=0
+                column
+                  column padding=16 padding-top=4 gap=8
+                    text "Summary" class=SectionLabel
+                    text (job.summary == "" ? "The runner returned no summary." : job.summary) font-size=13 line-height=1.5 color="#596068" testId="summary"
+                  box class=Divider
+                  row padding=16 padding-top=12 padding-bottom=6 justify-content="space-between" align-items="center"
+                    text "Findings" class=SectionLabel
+                    text `${length(job.findings)} found` class=Tertiary
+                  each f in job.findings key=`${f.sev}:${f.loc}:${f.title}`
+                    button press=selectFinding(f.index) class=Row gap=10 background-color=(selectedFinding == f.index ? "#f0f1f2" : "transparent")
+                      column flex=1 min-width=0 gap=4
+                        row gap=6 align-items="center"
+                          text f.sev class=Tag background-color=(f.sev == "BUG" ? "rgb(255, 220, 220)" : f.sev == "RULE" ? "rgb(255, 244, 194)" : f.sev == "TEST" ? "rgb(219, 231, 255)" : "#f5f5f7") color=(f.sev == "BUG" ? "rgb(207, 34, 46)" : f.sev == "RULE" ? "#8a6d00" : f.sev == "TEST" ? "#0072DE" : "#596068")
+                          text f.loc font-family="ui-monospace" font-size=11 color="#687076" line-clamp=1
+                        text f.title font-size=13 font-weight=500 line-height=1.35
+                        when selectedFinding == f.index and f.body != ""
+                          text f.body font-size=13 line-height=1.55 color="#596068" padding-top=4
+                  when length(job.findings) == 0
+                    text "No labelled findings in the output." class=Tertiary padding-left=16 padding-bottom=12
+              box class=Divider
+              row padding=12 padding-left=16 padding-right=16 gap=10 align-items="center" background-color="#f9fafb"
+                text "Nothing is posted to GitHub; the skill forbids it." class=Tertiary flex=1
+                button press=goBack class=Ghost
+                  text "Done"
+
+      // ---- 1f Settings — skills mapped by repository ---------------------
+      when signedIn and screen == "settings"
+        column flex=1 min-height=0 testId="settings-screen"
+          row padding-top=8 padding-right=12 padding-bottom=8 padding-left=12 gap=6 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="#e1e4e8" background-color="#f9fafb"
+            button press=goBack class=IconBtn testId="back" aria-label="Back"
+              Icon(name="chevron-left", size=16, color="#596068")
+            row flex=1 justify-content="center" gap=4
+              button press=setSettingsTab("general") class=(settingsTab == "general" ? TabOn : Tab) testId="tab-general"
+                text "General"
+              button press=setSettingsTab("accounts") class=(settingsTab == "accounts" ? TabOn : Tab) testId="tab-accounts"
+                text "Accounts"
+              button press=setSettingsTab("skills") class=(settingsTab == "skills" ? TabOn : Tab) testId="tab-skills"
+                text "Skills"
+            box width=28
+          scroll flex=1 min-height=0
+            when settingsTab == "general"
+              column padding=16 gap=12
+                text "General" class=SectionLabel
+                row justify-content="space-between" align-items="center"
+                  text "Poll GitHub" font-size=13
+                  text "every 60 s" class=Secondary
+                row justify-content="space-between" align-items="center"
+                  text "Notifications" font-size=13
+                  text (notifications.available ? notifications.permission : "unavailable here") class=Secondary testId="notification-status"
+                when notifications.available and notifications.permission != "granted"
+                  button press=askPermission class=Outline align-self="flex-start" testId="ask-permission"
+                    text "Allow notifications"
+                row justify-content="space-between" align-items="center"
+                  text "AI review sidecar" font-size=13
+                  text (sidecar.reachable ? `ready · runner ${sidecar.runner}` : "offline") class=Secondary testId="sidecar-status"
+            when settingsTab == "accounts"
+              column padding=16 gap=12
+                text "GitHub" class=SectionLabel
+                row justify-content="space-between" align-items="center"
+                  column gap=2
+                    text session.login font-size=13 font-weight=500 testId="signed-in-as"
+                    text "Token in the macOS Keychain · scopes notifications, repo, read:user" class=Tertiary
+                  button press=doSignOut class=Outline testId="sign-out"
+                    text "Sign out"
+            when settingsTab == "skills"
+              column
+                column padding=16 padding-bottom=8 gap=8
+                  row justify-content="space-between" align-items="center"
+                    text "Repository rules" class=SectionLabel
+                  text "First match wins. Patterns support *." font-size=12 line-height=1.5 color="#687076"
+                  each rule in skills.rules key=rule.pattern
+                    row padding-top=8 padding-bottom=8 padding-left=8 padding-right=8 border-radius=6 gap=10 align-items="center" background-color=(rule.skill == skills.selected ? "#eaecf0" : "transparent")
+                      column flex=1 min-width=0 gap=2
+                        text rule.pattern font-family="ui-monospace" font-size=12 font-weight=500
+                        text `→ ${rule.skill}.md` class=Tertiary
+                      button press=removeRule(rule.pattern) class=IconBtn width=24 height=24 aria-label=`Remove rule ${rule.pattern}`
+                        Icon(name="x", size=13, color="#687076")
+                  row gap=6 align-items="center"
+                    input value=newPattern input=setNewPattern placeholder="owner/repo*" class=Field flex=1 testId="new-pattern"
+                    input value=newSkill input=setNewSkill placeholder="skill" class=Field flex=1 testId="new-skill"
+                    button press=addRule class=OutlineSm height=30 disabled=(newPattern == "" or newSkill == "") testId="add-rule"
+                      Icon(name="plus", size=13, color="#11181c")
+                  match rules
+                    case some(r)
+                      when r.error != ""
+                        text r.error class=Error
+                    case none
+                      box
+                box class=Divider
+                column padding=16 padding-top=12 gap=8
+                  text "Test a repository" class=Tertiary
+                  input value=testRepo input=setTestRepo placeholder="expo/orbit" class=Field testId="test-repo"
+                  when testRepo != ""
+                    row gap=4 class=Secondary
+                      text "Uses"
+                      text `${testMatch.skill}.md` class=Mono
+                      text "via"
+                      text testMatch.pattern class=Mono
+                box class=Divider
+                column padding=16 padding-top=12 gap=8
+                  row justify-content="space-between" align-items="center"
+                    text "Skill files" class=SectionLabel
+                    text (skills.reachable ? "" : "sidecar offline") class=Error
+                  row gap=6 flex-wrap="wrap"
+                    each s in skills.skills key=s.name
+                      button press=selectSkill(s.name) class=(s.name == skills.selected ? ChipOn : Chip) testId=`skill-${s.name}`
+                        Icon(name="file-text", size=13, color=(s.name == skills.selected ? "#11181c" : "#596068"))
+                        text `${s.name}.md`
+                  when skills.selected != ""
+                    row gap=8 align-items="center"
+                      text (skills.error != "" ? skills.error : `Used by ${skills.usedBy}`) class=Tertiary flex=1 line-clamp=1
+                      when skillEditing
+                        text "EDITED" class=Tag background-color="rgb(255, 244, 194)" color="#8a6d00"
+                    when skillEditing
+                      textarea value=skillDraft input=changeSkill font-family="ui-monospace" font-size=12 line-height=1.75 height=320 width="100%" box-sizing="border-box" padding=12 border-style="solid" border-width=1 border-color="#e1e4e8" border-radius=8 background-color="#fbfcfd" color="#11181c" testId="skill-editor"
+                    else
+                      column border-style="solid" border-width=1 border-color="#eaecf0" border-radius=8 background-color="#fbfcfd" padding-top=12 padding-bottom=12 overflow="hidden"
+                        each l in skills.lines key=l.n
+                          row gap=0
+                            text `${l.n}` font-family="ui-monospace" font-size=12 line-height=1.75 color="#c9d1d9" width=40 text-align="right" padding-right=12 flex-shrink=0
+                            text l.text font-family="ui-monospace" font-size=12 line-height=1.75 color=(l.heading ? "#0072DE" : "#11181c") font-weight=(l.heading ? 600 : 400) white-space="pre" line-clamp=1 flex=1 min-width=0
+                    row gap=10 align-items="center"
+                      text skills.path class=Tertiary flex=1 line-clamp=1
+                      when skillEditing
+                        button press=revertSkill class=Ghost height=30 testId="revert-skill"
+                          text "Revert"
+                        button press=saveSkill class=PrimarySm height=30 testId="save-skill"
+                          text "Save"
+                      else
+                        button press=editSkill class=Outline height=30 testId="edit-skill"
+                          text "Edit"
+                    match saved
+                      case some(s)
+                        when s.error != ""
+                          text s.error class=Error
+                      case none
+                        box
+
+// Lucide icons (stroke 2, round caps), as in the design.
+component Icon
+  props
+    name: string
+    size: number
+    color: string
+  view
+    svg width=size height=size viewBox="0 0 24 24" fill="none" flex-shrink=0
+      when name == "git-pull-request"
+        circle cx=18 cy=18 r=3 stroke=color stroke-width=2
+        circle cx=6 cy=6 r=3 stroke=color stroke-width=2
+        path d="M13 6h3a2 2 0 0 1 2 2v7" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M6 9v12" stroke=color stroke-width=2 stroke-linecap="round"
+      when name == "refresh"
+        path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M21 3v5h-5" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M8 16H3v5" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+      when name == "settings"
+        path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        circle cx=12 cy=12 r=3 stroke=color stroke-width=2
+      when name == "sparkles"
+        path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M20 3v4" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M22 5h-4" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M4 17v2" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M5 18H3" stroke=color stroke-width=2 stroke-linecap="round"
+      when name == "chevron-left"
+        path d="m15 18-6-6 6-6" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+      when name == "chevron-down"
+        path d="m6 9 6 6 6-6" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+      when name == "log-in"
+        path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="m10 17 5-5-5-5" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M15 12H3" stroke=color stroke-width=2 stroke-linecap="round"
+      when name == "file-text"
+        path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M14 2v4a2 2 0 0 0 2 2h4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M10 9H8" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M16 13H8" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M16 17H8" stroke=color stroke-width=2 stroke-linecap="round"
+      when name == "plus"
+        path d="M5 12h14" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M12 5v14" stroke=color stroke-width=2 stroke-linecap="round"
+      when name == "x"
+        path d="M18 6 6 18" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="m6 6 12 12" stroke=color stroke-width=2 stroke-linecap="round"
+
+// One review-request row (design 1b).
+component ReviewRow
+  props
+    r: Review
+    press: action
+  view
+    button press=press class=Row testId=`pr-${r.id}`
+      box class=Dot background-color=(r.ci == "pass" ? "rgb(9, 141, 72)" : r.ci == "fail" ? "rgb(207, 34, 46)" : r.ci == "run" ? "rgb(255, 138, 76)" : "#c9d1d9")
+      column flex=1 min-width=0 gap=3
+        text (r.team == "" ? `${r.repo} #${r.number}` : `${r.repo} #${r.number} · ${r.team}`) class=MonoLabel
+        text r.title font-size=13 font-weight=(r.unread ? 600 : 500) line-height=1.35 line-clamp=2
+        text (r.unread ? `${r.ciLabel} · new` : r.ciLabel) class=Secondary
+      row class=OutlineSm
+        Icon(name="sparkles", size=13, color="#11181c")
+        text "Review"

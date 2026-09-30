@@ -7,7 +7,7 @@ import type { ServerWebSocket } from 'bun';
 import { loadConfig } from './config.ts';
 import { closeMissing, getMeta, listPending, markSeen, openDb, setMeta, upsertPr, type PullRequestRow } from './db.ts';
 import { GitHubClient, pollDeviceFlow, startDeviceFlow, type ReviewRequest } from './github.ts';
-import { getJob, listJobs, listSkills, startReview, type ReviewRequest as ReviewJobRequest, type Runner } from './review.ts';
+import { cancelJob, getJob, listJobs, listSkills, readSkill, startReview, writeSkill, type ReviewRequest as ReviewJobRequest, type Runner } from './review.ts';
 
 const config = loadConfig();
 const db = openDb();
@@ -183,6 +183,24 @@ const server = Bun.serve<undefined>({
       return json(listSkills());
     }
 
+    const skill = path.match(/^\/skills\/([^/]+)$/);
+    if (request.method === 'GET' && skill) {
+      try {
+        return json(readSkill(decodeURIComponent(skill[1]!)));
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : String(error) }, 404);
+      }
+    }
+    if (request.method === 'PUT' && skill) {
+      const body = (await request.json().catch(() => ({}))) as { content?: string };
+      if (typeof body.content !== 'string') return json({ error: 'content is required' }, 400);
+      try {
+        return json(writeSkill(decodeURIComponent(skill[1]!), body.content));
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : String(error) }, 400);
+      }
+    }
+
     if (request.method === 'GET' && path === '/reviews') {
       return json(listJobs());
     }
@@ -200,6 +218,11 @@ const server = Bun.serve<undefined>({
     const review = path.match(/^\/reviews\/([^/]+)$/);
     if (request.method === 'GET' && review) {
       const job = getJob(decodeURIComponent(review[1]!));
+      return job ? json(job) : json({ error: 'not found' }, 404);
+    }
+    if (request.method === 'DELETE' && review) {
+      const job = cancelJob(decodeURIComponent(review[1]!));
+      if (job) broadcast({ type: 'review', job });
       return job ? json(job) : json({ error: 'not found' }, 404);
     }
 

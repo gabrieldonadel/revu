@@ -5,8 +5,10 @@ A macOS app for reviewing GitHub pull requests, built on
 [LLP](https://github.com/ccheever/llp) design corpus in `llp/`.
 
 - **`revu-app/`** — the Exact2 app (`app.contract` UI, `app.ts` data: device-flow
-  sign-in, GitHub polling, Keychain token, SQLite seen-state). Windowed; the
-  menu bar item and notifications are capability asks (LLP 0003).
+  sign-in, GitHub polling, Keychain token, SQLite seen-state, PR details, skill
+  rules, review jobs). The screens follow the Claude Design file "PR Review
+  Menu Bar" (LLP 0005). Notifications come from the app's own native module
+  (`revu-app/modules/`, LLP 0003); the menu bar item is still to come.
 - **`sidecar/`** — Bun daemon for the AI-review runner (M5).
 
 ## Run
