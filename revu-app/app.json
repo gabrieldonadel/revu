@@ -26,6 +26,9 @@
       "macos": "0"
     }
   },
+  "file_handlers": [
+    { "action": "/", "name": "Skill file", "accept": { "text/markdown": [".md"] } }
+  ],
   "launch_handler": { "client_mode": "navigate-new" },
   "theme_color": "#111827",
   "background_color": "#ffffff",
