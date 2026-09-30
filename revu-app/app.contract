@@ -307,6 +307,8 @@ component Revu
   derive jobId = match started { case some(s) => s.id, case none => "" }
   derive rulesStamp = match rules { case some(r) => r.stamp, case none => 0 }
   derive savedStamp = match saved { case some(s) => s.stamp, case none => 0 }
+  // The code's own deadline, so an expiry shows even if a poll is missed.
+  derive codeExpired = match device { case some(d) => d.ok and nowMs > d.expiresAt, case none => false }
   derive screen = top(nav).name
   derive prOwner = top(nav).params.owner
   derive prName = top(nav).params.name
@@ -388,15 +390,17 @@ component Revu
   action clock writes tick, grant, nowMs, pollMs, announced
     tick = tick + 1
     nowMs = time.epochAtZero + now()
+    if tick % 12 == 0
+      pollMs = nowMs
     if signedIn
-      if tick % 12 == 0
-        pollMs = nowMs
       if tick % 12 == 1
         send announced = announceNew(nowMs)
+      if pollMs == 0
+        pollMs = nowMs
     else
       match device
         case some(d)
-          if d.ok and not granted
+          if d.ok and not granted and not codeExpired
             send grant = devicePoll(d.deviceCode, nowMs)
         case none
           tick = tick
@@ -439,11 +443,14 @@ component Revu
                     text "Open github.com/login/device ↗"
                   when d.error != ""
                     text d.error class=Error testId="device-error"
-                  match grant
-                    case some(g)
-                      text g.status == "ok" ? `Signed in as ${g.login}` : g.error != "" ? g.error : "Waiting for approval…" class=Tertiary testId="grant-status"
-                    case none
-                      text "Waiting for approval…" class=Tertiary testId="grant-status"
+                  when codeExpired
+                    text "The code expired; start again." class=Error testId="grant-status"
+                  else
+                    match grant
+                      case some(g)
+                        text g.status == "ok" ? `Signed in as ${g.login}` : g.error != "" ? g.error : "Waiting for approval…" class=Tertiary testId="grant-status"
+                      case none
+                        text "Waiting for approval…" class=Tertiary testId="grant-status"
                 button press=cancelSignIn class=Ghost testId="cancel-sign-in"
                   text "Cancel"
               case none
@@ -711,8 +718,8 @@ component Revu
                       button press=removeRule(rule.pattern) class=IconBtn width=24 height=24 aria-label=`Remove rule ${rule.pattern}`
                         Icon(name="x", size=13, color="#687076")
                   row gap=6 align-items="center"
-                    input value=newPattern input=setNewPattern placeholder="owner/repo*" class=Field flex=1 testId="new-pattern"
-                    input value=newSkill input=setNewSkill placeholder="skill" class=Field flex=1 testId="new-skill"
+                    input value=newPattern input=setNewPattern autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="owner/repo*" class=Field flex=1 testId="new-pattern"
+                    input value=newSkill input=setNewSkill autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="skill" class=Field flex=1 testId="new-skill"
                     button press=addRule class=OutlineSm height=30 disabled=(newPattern == "" or newSkill == "") testId="add-rule"
                       Icon(name="plus", size=13, color="#11181c")
                   match rules
@@ -724,7 +731,7 @@ component Revu
                 box class=Divider
                 column padding=16 padding-top=12 gap=8
                   text "Test a repository" class=Tertiary
-                  input value=testRepo input=setTestRepo placeholder="expo/orbit" class=Field testId="test-repo"
+                  input value=testRepo input=setTestRepo autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="expo/orbit" class=Field testId="test-repo"
                   when testRepo != ""
                     row gap=4 class=Secondary
                       text "Uses"

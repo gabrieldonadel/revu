@@ -435,7 +435,7 @@ async function matchSkill(storage: Storage, repo: string, _stamp: number): Promi
 }
 
 async function addRule(storage: Storage, pattern: string, skill: string): Promise<Result<'addRule'>> {
-  const p = pattern.trim();
+  const p = pattern.trim().toLowerCase();
   const s = skill.trim().replace(/\.md$/, '');
   if (!p || !s) return { stamp: ++stamp, error: 'A rule needs a pattern and a skill.' };
   try {

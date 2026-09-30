@@ -40,6 +40,22 @@ final class Notifier: ExactModule {
     required init(context: ExactModuleContext) {
         super.init(context: context)
         if context.agent { permission = "granted" }
+        refreshPermission()
+    }
+
+    /// The standing answer, read from the center: a decision from an earlier
+    /// launch is still the answer, and `status` must not report the default.
+    private func refreshPermission() {
+        guard !context.agent, available else { return }
+        installDelegate()
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            guard let self else { return }
+            let current = Notifier.permissionString(settings.authorizationStatus)
+            if current != self.permission {
+                self.permission = current
+                self.context.changed("notifications")
+            }
+        }
     }
 
     // MARK: cheap queries (main thread, inside the asking answer's budget)
@@ -47,6 +63,7 @@ final class Notifier: ExactModule {
     override func call(_ request: [String: Any]) throws -> [String: Any] {
         switch request["op"] as? String {
         case "status":
+            refreshPermission()
             return ["available": available, "permission": permission, "pending": pendingCount]
         case "drain":
             return ["actions": drain()]
