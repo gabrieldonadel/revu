@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
 
-VERSION="${1:-$(python3 -c 'import json;print(json.load(open("revu-app/app.json"))["version"])')}"
+VERSION="${1:-$(python3 -c 'import json;print(json.load(open("package.json"))["version"])')}"
 ARCH="$(uname -m)"
 DIST="dist"
 mkdir -p "$DIST"
