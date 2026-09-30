@@ -1,4 +1,4 @@
-import type { Answer, Sources, Result, Storage, Database } from './app.contract.d.ts';
+import type { Answer, Sources, Result, Storage, Database, NativeModule } from './app.contract.d.ts';
 
 // revu's data: device-flow sign-in (LLP 0002), GitHub polling (LLP 0001
 // §Polling, now in-app: exact2 gives app.ts `net.fetch` and a Keychain-backed
@@ -152,8 +152,14 @@ async function withDb<T>(storage: Storage, work: (db: Database) => Promise<T>): 
   const db = await storage.sqlite.open('app:/data/revu.db');
   try {
     await db.execute(
-      'CREATE TABLE IF NOT EXISTS prs (id TEXT PRIMARY KEY, first_seen_at TEXT NOT NULL, seen INTEGER NOT NULL DEFAULT 0)',
+      'CREATE TABLE IF NOT EXISTS prs (id TEXT PRIMARY KEY, first_seen_at TEXT NOT NULL, seen INTEGER NOT NULL DEFAULT 0, announced INTEGER NOT NULL DEFAULT 0, title TEXT NOT NULL DEFAULT \'\', url TEXT NOT NULL DEFAULT \'\', author TEXT NOT NULL DEFAULT \'\', requested_at TEXT NOT NULL DEFAULT \'\')',
     );
+    // An older table (before announcing) gains the new columns in place.
+    const cols = await db.query('PRAGMA table_info(prs)');
+    const names = new Set(cols.rows.map((r) => String(r[1])));
+    for (const [name, decl] of [['announced', 'INTEGER NOT NULL DEFAULT 0'], ['title', "TEXT NOT NULL DEFAULT ''"], ['url', "TEXT NOT NULL DEFAULT ''"], ['author', "TEXT NOT NULL DEFAULT ''"], ['requested_at', "TEXT NOT NULL DEFAULT ''"]] as const) {
+      if (!names.has(name)) await db.execute(`ALTER TABLE prs ADD COLUMN ${name} ${decl}`);
+    }
     return await work(db);
   } finally {
     await db.close();
@@ -162,7 +168,7 @@ async function withDb<T>(storage: Storage, work: (db: Database) => Promise<T>): 
 
 const emptyInbox: Inbox = { ready: false, login: '', unread: 0, total: 0, polledAt: 'never', error: '', reviews: [] };
 
-async function reviewRequests(store: Store, storage: Storage, login: string, now: number): Promise<Inbox> {
+async function reviewRequests(store: Store, storage: Storage, login: string, now: number, _actionsStamp: number): Promise<Inbox> {
   if (!store.get('github.token')) return emptyInbox;
   let items: Json[];
   try {
@@ -194,7 +200,8 @@ async function reviewRequests(store: Store, storage: Storage, login: string, now
     await withDb(storage, async (db) => {
       const firstSeen = new Date(now).toISOString();
       for (const r of reviews) {
-        await db.execute('INSERT OR IGNORE INTO prs (id, first_seen_at, seen) VALUES (?, ?, 0)', [r.id, firstSeen]);
+        await db.execute('INSERT OR IGNORE INTO prs (id, first_seen_at, seen, title, url, author, requested_at) VALUES (?, ?, 0, ?, ?, ?, ?)', [r.id, firstSeen, r.title, r.url, r.author, r.requestedAt]);
+        await db.execute('UPDATE prs SET title = ?, url = ?, author = ? WHERE id = ?', [r.title, r.url, r.author, r.id]);
       }
       // Rows are positional (SQLValue[]), in SELECT order.
       const rows = await db.query('SELECT id, seen FROM prs');
@@ -239,10 +246,109 @@ async function sidecarStatus(): Promise<SidecarStatus> {
   }
 }
 
+// --- notifications (LLP 0003; exact2 LLP 1067.000 module `revu-notifier`) ---
+
+type Native = NativeModule | null | undefined;
+type NotifyStatus = Result<'notificationStatus'>;
+type Announced = Result<'announceNew'>;
+type Actions = Result<'notificationActions'>;
+
+function notifier(native: Native): NativeModule | null {
+  return native && native.available ? native : null;
+}
+
+async function notificationStatus(native: Native): Promise<NotifyStatus> {
+  const n = notifier(native);
+  if (!n) return { available: false, permission: 'unavailable', pending: 0 };
+  n.watch('notifications');
+  try {
+    return (n.call({ op: 'status' }) as NotifyStatus);
+  } catch {
+    return (await n.later({ op: 'status' })) as NotifyStatus;
+  }
+}
+
+async function requestNotificationPermission(native: Native): Promise<NotifyStatus> {
+  const n = notifier(native);
+  if (!n) return { available: false, permission: 'unavailable', pending: 0 };
+  const r = (await n.later({ op: 'permission' })) as { permission: string };
+  return { available: true, permission: r.permission, pending: 0 };
+}
+
+/** Post one notification per review request not yet announced; the SQLite
+ *  `announced` flag is what makes each fire exactly once across restarts. */
+async function announceNew(store: Store, storage: Storage, native: Native, now: number): Promise<Announced> {
+  const n = notifier(native);
+  if (!n || !store.get('github.token')) return { stamp: ++stamp, count: 0, error: n ? '' : 'notifier unavailable' };
+  let count = 0;
+  let error = '';
+  try {
+    await withDb(storage, async (db) => {
+      const rows = await db.query("SELECT id, title, url, author, requested_at FROM prs WHERE announced = 0 AND seen = 0 ORDER BY requested_at DESC LIMIT 5");
+      for (const row of rows.rows) {
+        const [id, title, url, author] = row.map((v) => String(v));
+        const [repo, number] = id.split('#');
+        try {
+          await n.later({
+            op: 'notify',
+            id: `revu:${id}`,
+            title: `Review requested: ${repo}#${number}`,
+            subtitle: author,
+            body: title,
+            sound: 'default',
+            actions: [
+              { id: 'open', title: 'Open' },
+              { id: 'seen', title: 'Mark read' },
+            ],
+            data: { prId: id, url },
+          });
+          await db.execute('UPDATE prs SET announced = 1 WHERE id = ?', [id]);
+          count += 1;
+        } catch (e) {
+          error = message(e);
+        }
+      }
+    });
+  } catch (e) {
+    error = message(e);
+  }
+  return { stamp: ++stamp, count, error };
+}
+
+/** Re-asked whenever the module announces `notifications`; applies each
+ *  action (open → the URL is opened by the module's host? no: here) and
+ *  returns what happened so the inbox re-asks. */
+async function notificationActions(storage: Storage, native: Native, now: number): Promise<Actions> {
+  const n = notifier(native);
+  if (!n) return { stamp: 0, applied: [] };
+  n.watch('notifications');
+  let actions: Array<{ notificationId: string; actionId: string; data: { prId?: string; url?: string } }> = [];
+  try {
+    actions = ((n.call({ op: 'drain' }) as { actions?: typeof actions }).actions) ?? [];
+  } catch {
+    actions = (((await n.later({ op: 'drain' })) as { actions?: typeof actions }).actions) ?? [];
+  }
+  const applied: string[] = [];
+  for (const a of actions) {
+    const prId = a.data?.prId ?? '';
+    if (!prId) continue;
+    if (a.actionId === 'seen' || a.actionId === 'open' || a.actionId === 'default') {
+      try { await withDb(storage, (db) => db.execute('UPDATE prs SET seen = 1 WHERE id = ?', [prId])); } catch { /* agent mode */ }
+    }
+    applied.push(`${a.actionId}:${prId}`);
+  }
+  // A new stamp only when something happened, so a mere re-ask does not churn the inbox.
+  return { stamp: applied.length ? now : 0, applied };
+}
+
 const sources: Sources = {
+  notificationStatus: (_, _store, _storage, native) => notificationStatus(native),
+  requestNotificationPermission: (_, _store, _storage, native) => requestNotificationPermission(native),
+  announceNew: ([now], store, storage, native) => announceNew(store, storage, native, Number(now)),
+  notificationActions: ([now], _store, storage, native) => notificationActions(storage, native, Number(now)),
   sidecarStatus: () => sidecarStatus(),
   currentSession: (_, store) => currentSession(store),
-  reviewRequests: ([login, now], store, storage) => reviewRequests(store, storage, String(login ?? ''), Number(now)),
+  reviewRequests: ([login, now, actionsStamp], store, storage) => reviewRequests(store, storage, String(login ?? ''), Number(now), Number(actionsStamp)),
   deviceStart: ([now]) => deviceStart(Number(now)),
   devicePoll: ([code, now], store) => devicePoll(store, String(code), Number(now)),
   signOut: (_, store) => {
@@ -252,4 +358,4 @@ const sources: Sources = {
   markSeen: ([id], _store, storage) => markSeen(storage, String(id)),
 };
 
-export const answer: Answer = (source, args, store, storage) => sources[source](args, store, storage);
+export const answer: Answer = (source, args, store, storage, native) => sources[source](args, store, storage, native);

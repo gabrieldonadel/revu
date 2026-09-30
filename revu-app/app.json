@@ -31,5 +31,8 @@
   "rust": false,
   "typescript": {
     "placement": "main"
-  }
+  },
+  "modules": [
+    "revu-notifier"
+  ]
 }

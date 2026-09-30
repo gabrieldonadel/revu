@@ -54,6 +54,20 @@ shape SidecarStatus
   runner: string
   detail: string
 
+shape NotifyStatus
+  available: bool
+  permission: string
+  pending: number
+
+shape Announced
+  stamp: number
+  count: number
+  error: string
+
+shape Actions
+  stamp: number
+  applied: list<string>
+
 shape Seen
   stamp: number
   id: string
@@ -81,12 +95,18 @@ component Revu
   resource time = exactTime() as shape Time
   resource session = currentSession() as shape Session
   resource sidecar = sidecarStatus() as shape SidecarStatus
-  resource inbox = reviewRequests(session.login, nowMs) as shape Inbox
+  resource notifications = notificationStatus() as shape NotifyStatus
+  // Re-asked when the module announces a user's answer; the inbox depends on
+  // its stamp so a "Mark read" from a banner shows at once.
+  resource actions = notificationActions(nowMs) as shape Actions
+  resource inbox = reviewRequests(session.login, nowMs, actions.stamp) as shape Inbox
 
   mutation device as shape DeviceCode refreshes session
   mutation grant as shape Grant refreshes session, inbox
   mutation seen as shape Seen refreshes inbox
   mutation signout as shape Session refreshes session, inbox
+  mutation permission as shape NotifyStatus refreshes notifications
+  mutation announced as shape Announced
 
   derive signedIn = session.signedIn
   derive granted = match grant { case some(g) => g.status == "ok", case none => false }
@@ -104,17 +124,22 @@ component Revu
     send signout = signOut()
   action markRead(id: string) writes seen
     send seen = markSeen(id)
-  action refreshNow writes nowMs
+  action refreshNow writes nowMs, announced
     nowMs = time.epochAtZero + now()
     refresh inbox
+    send announced = announceNew(nowMs)
+  action askPermission writes permission
+    send permission = requestNotificationPermission()
   // One 5s clock: while a device code is out and not yet granted, poll the
   // grant; once signed in, refresh the inbox every 12th tick (60s).
-  action clock writes tick, grant, nowMs
+  action clock writes tick, grant, nowMs, announced
     tick = tick + 1
     nowMs = time.epochAtZero + now()
     if signedIn
       if tick % 12 == 0
         refresh inbox
+      if tick % 12 == 1
+        send announced = announceNew(nowMs)
     else
       match device
         case some(d)
@@ -128,6 +153,7 @@ component Revu
 
   view
     column class=Page
+      revu-notifier width=0 height=0 testId="notifier"
       row justify-content="space-between" align-items="center"
         text "revu" class=Title testId="title"
         text signedIn ? `${inbox.unread} unread · ${inbox.total} pending` : "not signed in" class=Muted testId="summary"
@@ -168,6 +194,11 @@ component Revu
           when inbox.error != ""
             text inbox.error color="#b91c1c" font-size=13 testId="error"
           text sidecar.reachable ? `AI review: sidecar ready · runner ${sidecar.runner}` : "AI review: sidecar offline" class=Muted testId="sidecar-status"
+          row gap=8 align-items="center"
+            text notifications.available ? `Notifications: ${notifications.permission}` : "Notifications: unavailable here" class=Muted testId="notification-status"
+            when notifications.available and notifications.permission != "granted"
+              button press=askPermission class=BtnGhost testId="ask-permission"
+                text "Allow notifications"
           when inbox.ready and inbox.total == 0
             text "No pending review requests." class=Muted testId="empty"
           each r in inbox.reviews key=r.id
