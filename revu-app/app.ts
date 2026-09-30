@@ -22,6 +22,7 @@ const SIDECAR = 'http://127.0.0.1:47831';
 const UA = 'revu/0.1 (+https://revu.donadel.dev)';
 const DEFAULT_SKILL = 'deep-code-review';
 const DEFAULT_AGENT = 'claude';
+const DEFAULT_MODEL = 'opus';
 
 type Store = Parameters<Answer>[2];
 
@@ -575,9 +576,10 @@ async function startReview(store: Store, storage: Storage, id: string, skill: st
     const auth = await sidecar('/auth/token', { method: 'POST', body: JSON.stringify({ access_token: token }) });
     if (!auth.ok) return { stamp: ++stamp, id: '', error: `The sidecar refused the token (${auth.status}).` };
     const agent = await readSetting(storage, 'agent', DEFAULT_AGENT);
+    const model = await readSetting(storage, 'model', DEFAULT_MODEL);
     const res = await sidecar('/reviews', {
       method: 'POST',
-      body: JSON.stringify({ repo, number: Number(number), title: detail.title, body: detail.body, baseSha: detail.baseSha, headSha: detail.headSha, headRef: detail.headRef, url: detail.url, skill, agent }),
+      body: JSON.stringify({ repo, number: Number(number), title: detail.title, body: detail.body, baseSha: detail.baseSha, headSha: detail.headSha, headRef: detail.headRef, url: detail.url, skill, agent, model }),
     });
     const body = (await res.json()) as Json;
     if (!res.ok) return { stamp: ++stamp, id: '', error: String(body.error ?? `sidecar answered ${res.status}`) };
@@ -602,13 +604,15 @@ async function readSetting(storage: Storage, key: string, fallback: string): Pro
 
 async function agentSettings(storage: Storage, _stamp: number): Promise<Result<'agentSettings'>> {
   const current = await readSetting(storage, 'agent', DEFAULT_AGENT);
-  const base = { current, claudeAvailable: false, codexAvailable: false, claudePath: '', codexPath: '' };
+  const model = await readSetting(storage, 'model', DEFAULT_MODEL);
+  const base = { current, model, claudeAvailable: false, codexAvailable: false, claudePath: '', codexPath: '' };
   try {
     const res = await sidecar('/health');
     if (!res.ok) return base;
     const agents = ((await res.json()) as Json).agents ?? {};
     return {
       current,
+      model,
       claudeAvailable: Boolean(agents.claude?.available),
       codexAvailable: Boolean(agents.codex?.available),
       claudePath: String(agents.claude?.path ?? ''),
@@ -616,6 +620,15 @@ async function agentSettings(storage: Storage, _stamp: number): Promise<Result<'
     };
   } catch {
     return base;
+  }
+}
+
+async function setModel(storage: Storage, model: string): Promise<Result<'setModel'>> {
+  try {
+    await withDb(storage, (db) => db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['model', model.trim()]));
+    return { stamp: ++stamp, ok: true };
+  } catch {
+    return { stamp: ++stamp, ok: false };
   }
 }
 
@@ -872,6 +885,7 @@ const sources: Sources = {
   reviewJob: ([jobId, tick, epoch, toggled, posted]) => reviewJob(String(jobId ?? ''), Number(tick), Number(epoch), Number(toggled), Number(posted)),
   agentSettings: ([stamp], _store, storage) => agentSettings(storage, Number(stamp)),
   setAgent: ([name], _store, storage) => setAgent(storage, String(name ?? '')),
+  setModel: ([model], _store, storage) => setModel(storage, String(model ?? '')),
   toggleComment: ([jobId, index]) => toggleComment(String(jobId ?? ''), Number(index)),
   postComments: ([jobId]) => postComments(String(jobId ?? '')),
   skillSettings: ([selected, rulesStamp, savedStamp], _store, storage) => skillSettings(storage, String(selected ?? ''), Number(rulesStamp), Number(savedStamp)),

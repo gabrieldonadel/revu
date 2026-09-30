@@ -126,6 +126,7 @@ shape Job
 
 shape Agents
   current: string
+  model: string
   claudeAvailable: bool
   codexAvailable: bool
   claudePath: string
@@ -315,6 +316,7 @@ component Revu
   state skillEditing = false
   state selectedSkill = ""
   state selectedFinding = 0
+  state modelDraft = ""
 
   // @ref exact2 LLP 1027.000.000 — the date is a host fact; now() is ms since launch.
   resource time = exactTime() as shape Time
@@ -428,6 +430,10 @@ component Revu
     send postResult = postComments(jobId)
   action chooseAgent(name: string) writes agentSet
     send agentSet = setAgent(name)
+  action setModelDraft(v: string) writes modelDraft
+    modelDraft = v
+  action saveModel writes agentSet
+    send agentSet = setModel(modelDraft)
   action setTestRepo(v: string) writes testRepo
     testRepo = v
   action setNewPattern(v: string) writes newPattern
@@ -810,6 +816,12 @@ component Revu
                   column flex=1 gap=2
                     text "Codex CLI" font-size=13 font-weight=500
                     text (agents.codexAvailable ? `codex exec · ${agents.codexPath}` : "not installed — npm i -g @openai/codex, then codex login") class=Tertiary line-clamp=1
+                text "Model" class=SectionLabel padding-top=8
+                text "The alias or name the CLI accepts (Claude: opus, sonnet, or a full name; Codex: as `codex -m`). Empty uses the CLI's own default." font-size=12 line-height=1.5 color="#687076"
+                row gap=6 align-items="center"
+                  input value=(modelDraft == "" ? agents.model : modelDraft) input=setModelDraft autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="opus" class=Field flex=1 testId="model"
+                  button press=saveModel class=OutlineSm height=30 disabled=(modelDraft == "" or modelDraft == agents.model) testId="save-model"
+                    text "Save"
                 when not sidecar.reachable
                   text "The sidecar is offline; availability is unknown." class=Error
             when settingsTab == "skills"

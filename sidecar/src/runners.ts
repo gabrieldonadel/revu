@@ -75,11 +75,12 @@ function describeTool(name: string, input: Record<string, unknown>): string {
  *  writing the skill's JSON under /tmp. Progress from stream-json. */
 export const claudeRunner: Runner = {
   name: 'claude',
-  async run({ worktree, prompt, token, signal, onChunk }) {
+  async run({ worktree, prompt, token, model, signal, onChunk }) {
     const bin = find('claude');
     if (!bin) throw new Error('Claude Code is not installed (no `claude` on PATH)');
     const args = [
       '-p', '--verbose', '--output-format', 'stream-json',
+      ...(model ? ['--model', model] : []),
       '--permission-mode', 'dontAsk',
       // No Read/Grep/Glob: there is nothing local to read; gh is the only source.
       '--allowedTools', 'Bash(gh *)', 'Write(/tmp/*)',
@@ -121,11 +122,11 @@ export const claudeRunner: Runner = {
  *  last message as the result. Not exercised on a Mac without Codex (LLP 0004). */
 export const codexRunner: Runner = {
   name: 'codex',
-  async run({ worktree, prompt, token, signal, onChunk }) {
+  async run({ worktree, prompt, token, model, signal, onChunk }) {
     const bin = find('codex');
     if (!bin) throw new Error('Codex CLI is not installed (no `codex` on PATH)');
     const last = `/tmp/revu-codex-${Date.now()}.md`;
-    const args = ['exec', '--json', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-C', worktree, '--output-last-message', last, '-'];
+    const args = ['exec', '--json', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-C', worktree, '--output-last-message', last, ...(model ? ['-m', model] : []), '-'];
     const proc = Bun.spawn([bin, ...args], {
       cwd: worktree,
       env: { ...process.env, PATH: searchPath(), GH_TOKEN: token, GITHUB_TOKEN: token },

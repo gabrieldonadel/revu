@@ -16,6 +16,7 @@ export interface ReviewRequest {
   headRef: string;
   skill?: string; // skill name under the skills directories; default 'deep-code-review'
   agent?: string; // 'claude' | 'codex' — the local CLI that runs it (LLP 0004)
+  model?: string; // the CLI's model alias/name; empty = the CLI's own default
   url?: string; // the PR's html_url, for the skill's `gh` calls
 }
 
@@ -48,7 +49,7 @@ export interface ReviewJob {
 export interface Runner {
   name: string;
   /** Runs the review in `worktree`, calling `onChunk` as output arrives; resolves with the final text. */
-  run(input: { worktree: string; prompt: string; skill: string; token: string; signal: AbortSignal; onChunk: (text: string) => void }): Promise<string>;
+  run(input: { worktree: string; prompt: string; skill: string; token: string; model: string; signal: AbortSignal; onChunk: (text: string) => void }): Promise<string>;
 }
 
 const skillDirs = [
@@ -233,6 +234,7 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
         prompt,
         skill: request.skill ?? DEFAULT_SKILL,
         token,
+        model: request.model ?? '',
         signal: controller.signal,
         onChunk: (text) => {
           job.output += text;
