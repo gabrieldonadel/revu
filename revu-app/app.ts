@@ -280,6 +280,11 @@ async function requestNotificationPermission(native: Native): Promise<NotifyStat
 async function announceNew(store: Store, storage: Storage, native: Native, now: number): Promise<Announced> {
   const n = notifier(native);
   if (!n || !store.get('github.token')) return { stamp: ++stamp, count: 0, error: n ? '' : 'notifier unavailable' };
+  // The OS accepts a post silently while permission is undecided or denied;
+  // posting then would burn the once-only `announced` flag on a banner no one
+  // saw. Leave the row unannounced until the user has granted.
+  const status = await notificationStatus(native);
+  if (status.permission !== 'granted') return { stamp: ++stamp, count: 0, error: `notifications ${status.permission}` };
   let count = 0;
   let error = '';
   try {
