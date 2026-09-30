@@ -41,6 +41,9 @@ cp revu.config.json "$RES/revu.config.json"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$STAGE/revu.app/Contents/Info.plist" 2>/dev/null \
   || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$STAGE/revu.app/Contents/Info.plist"
 
+echo "== icon catalog"
+scripts/icon-catalog.sh "$STAGE/revu.app"
+
 echo "== sign (ad hoc)"
 codesign --force --sign - --timestamp=none "$RES/revu-sidecar"
 codesign --force --deep --sign - --timestamp=none "$STAGE/revu.app"

@@ -646,7 +646,10 @@ component Revu
               box class=Divider
               column padding=16 padding-top=12 padding-bottom=12 gap=6
                 text "Description" class=SectionLabel
-                text (detail.body == "" ? "(no description)" : detail.body) markup="markdown" font-size=13 line-height=1.5 color="#596068" width="100%" testId="pr-body"
+                when detail.body == ""
+                  text "(no description)" class=Secondary testId="pr-body"
+                else
+                  text detail.body markup="markdown" width="100%" font-size=13 line-height="20px" color="#596068" testId="pr-body"
           box class=Divider
           row padding=12 padding-left=16 padding-right=16 gap=8
             button press=runReview class=PrimarySm flex=1 disabled=(not detail.ready or not sidecar.reachable) testId="run-review"
@@ -723,7 +726,10 @@ component Revu
                 column
                   column padding=16 padding-top=4 gap=8
                     text "Summary" class=SectionLabel
-                    text (job.summary == "" ? "The agent returned no summary." : job.summary) markup="markdown" font-size=13 line-height=1.5 color="#596068" width="100%" testId="summary"
+                    when job.summary == ""
+                      text "The agent returned no summary." class=Secondary testId="summary"
+                    else
+                      text job.summary markup="markdown" width="100%" font-size=13 line-height="20px" color="#596068" testId="summary"
                   box class=Divider
                   row padding=16 padding-top=12 padding-bottom=6 justify-content="space-between" align-items="center"
                     text "Findings" class=SectionLabel
@@ -739,7 +745,7 @@ component Revu
                           text `${c.path}:${c.line}` font-family="ui-monospace" font-size=11 color="#687076" line-clamp=1 flex=1 min-width=0
                         text c.title font-size=13 font-weight=500 line-height=1.35
                         when selectedFinding == c.index and c.body != c.title
-                          text c.body markup="markdown" font-size=13 line-height=1.55 color="#596068" padding-top=4 width="100%"
+                          text c.body markup="markdown" width="100%" font-size=13 line-height="20px" color="#596068" padding-top=4
                   when length(job.comments) == 0
                     text (job.hasResult ? "No comments: the agent found nothing to say." : "The agent left no findings JSON; its output is above.") class=Tertiary padding-left=16 padding-bottom=12
               box class=Divider

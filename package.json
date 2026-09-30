@@ -9,7 +9,7 @@
     "sidecar:typecheck": "bunx tsc --noEmit -p sidecar/tsconfig.json",
     "app:web": "bun revu-app/exact.mjs web",
     "app:mac": "bun revu-app/exact.mjs mac --run",
-    "app:bundle": "cd revu-app && EXACT_APP_DIR=$PWD bun ../../exact2/host/apple/build.mjs revu-app-apple --bundle",
+    "app:bundle": "cd revu-app && EXACT_APP_DIR=$PWD bun ../../exact2/host/apple/build.mjs revu-app-apple --bundle && cd .. && scripts/icon-catalog.sh \"$(ls -d revu-app/target/clients/*/dev.donadel.revu/macos/revu.app | head -1)\" && codesign --force --deep --sign - --timestamp=none \"$(ls -d revu-app/target/clients/*/dev.donadel.revu/macos/revu.app | head -1)\"",
     "app:open": "open -n \"$(ls -d revu-app/target/clients/*/dev.donadel.revu/macos/revu.app | head -1)\""
   },
   "devDependencies": {

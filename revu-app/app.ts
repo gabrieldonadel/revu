@@ -437,7 +437,8 @@ async function prDetail(store: Store, storage: Storage, owner: string, name: str
       additions: Number(p.additions ?? 0),
       deletions: Number(p.deletions ?? 0),
       changed: files.slice(0, 40).map((f) => ({ path: String(f.filename ?? ''), additions: Number(f.additions ?? 0), deletions: Number(f.deletions ?? 0) })),
-      body: String(p.body ?? '').trim(),
+      // GitHub bodies are CRLF; the markdown reader wants LF.
+      body: String(p.body ?? '').replace(/\r\n?/g, '\n').trim(),
       skill: match.skill,
       skillRule: match.pattern,
       error: '',
