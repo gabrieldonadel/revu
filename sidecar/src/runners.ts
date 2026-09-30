@@ -82,8 +82,9 @@ export const claudeRunner: Runner = {
       '-p', '--verbose', '--output-format', 'stream-json',
       ...(model ? ['--model', model] : []),
       '--permission-mode', 'dontAsk',
-      // No Read/Grep/Glob: there is nothing local to read; gh is the only source.
-      '--allowedTools', 'Bash(gh *)', 'Write(/tmp/*)',
+      // No Read/Grep/Glob: there is nothing local to read; gh is the only
+      // source. Absolute paths in permission rules start with `//`.
+      '--allowedTools', 'Bash(gh *)', 'Write(//tmp/**)', `Write(//${worktree.replace(/^\//, '')}/**)`,
       '--add-dir', '/tmp',
     ];
     const proc = Bun.spawn([bin, ...args], {

@@ -124,6 +124,37 @@ export function scratchDir(request: ReviewRequest): string {
   return dir;
 }
 
+/** The last JSON object with a `comments` array in a text, if any. */
+export function salvageJson(text: string): ReviewResult | null {
+  let best: ReviewResult | null = null;
+  for (let start = text.indexOf('{'); start >= 0; start = text.indexOf('{', start + 1)) {
+    if (!/"comments"/.test(text.slice(start, start + 4000)) && !/"comments"/.test(text.slice(start))) continue;
+    let depth = 0;
+    let inString = false;
+    for (let i = start; i < text.length; i += 1) {
+      const ch = text[i];
+      if (inString) {
+        if (ch === '\\') i += 1;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === '{') depth += 1;
+      else if (ch === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          try {
+            const parsed = JSON.parse(text.slice(start, i + 1)) as ReviewResult;
+            if (Array.isArray(parsed.comments) && typeof parsed.summary === 'string') best = parsed;
+          } catch { /* not this one */ }
+          break;
+        }
+      }
+    }
+  }
+  return best;
+}
+
 /** Where the deep-code-review skill writes its JSON. */
 export function resultPath(request: ReviewRequest): string {
   return `/tmp/deep-code-review-${request.number}.json`;
@@ -245,6 +276,15 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
       // The skill's JSON is the result; the transcript is only progress.
       const path = resultPath(request);
       job.resultPath = path;
+      // An agent that could not write the file usually prints the JSON in
+      // its last message instead; take it from there.
+      if (!existsSync(path)) {
+        const salvaged = salvageJson(final) ?? salvageJson(job.output);
+        if (salvaged) {
+          writeFileSync(path, JSON.stringify(salvaged, null, 2));
+          job.output += `sidecar: took the findings JSON from the agent's message\n`;
+        }
+      }
       if (existsSync(path)) {
         try {
           job.result = JSON.parse(readFileSync(path, 'utf8')) as ReviewResult;
