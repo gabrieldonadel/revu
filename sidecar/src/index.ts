@@ -3,6 +3,7 @@
 // @ref LLP 0001#transport — loopback HTTP for requests, WS for pushes.
 
 import type { ServerWebSocket } from 'bun';
+import { createHash, randomBytes } from 'node:crypto';
 
 import { loadConfig } from './config.ts';
 import { closeMissing, getMeta, listPending, markSeen, openDb, setMeta, upsertPr, type PullRequestRow } from './db.ts';
@@ -41,6 +42,35 @@ function runnerFor(agent: string | undefined) {
 }
 
 const sockets = new Set<ServerWebSocket<undefined>>();
+
+// --- the browser sign-in (LLP 0002 r4) ---
+const oauthFlows = new Map<string, { verifier: string; redirectUri: string; token: string | null; error: string | null; startedAt: number }>();
+
+/** The code → token step. The secret never reaches the app: it is in this
+ *  process's `.env` (dev) or behind the hosted exchange endpoint. */
+async function exchangeCode(code: string, verifier: string, redirectUri: string): Promise<string> {
+  const secret = process.env.GITHUB_CLIENT_SECRET;
+  if (secret) {
+    const res = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: config.github.oauthClientId, client_secret: secret, code, code_verifier: verifier, redirect_uri: redirectUri }),
+    });
+    const body = (await res.json()) as { access_token?: string; error?: string; error_description?: string };
+    if (!body.access_token) throw new Error(body.error_description ?? body.error ?? `GitHub answered ${res.status}`);
+    return body.access_token;
+  }
+  const endpoint = config.github.oauthExchangeUrl;
+  if (!endpoint) throw new Error('no client secret here and no exchange endpoint configured (github.oauthExchangeUrl)');
+  const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, code_verifier: verifier, redirect_uri: redirectUri }) });
+  const body = (await res.json().catch(() => ({}))) as { access_token?: string; error?: string };
+  if (!res.ok || !body.access_token) throw new Error(body.error ?? `the exchange endpoint answered ${res.status}`);
+  return body.access_token;
+}
+
+function oauthPage(message: string, ok: boolean): string {
+  return `<!doctype html><meta charset="utf-8"><title>revu</title><body style="font-family:-apple-system,system-ui;background:#f9fafb;color:#11181c;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="background:#fff;border:1px solid #e1e4e8;border-radius:12px;padding:32px 28px;max-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.12)"><div style="width:40px;height:40px;border-radius:10px;background:${ok ? '#11181c' : 'rgb(207,34,46)'};margin-bottom:16px"></div><h1 style="font-size:18px;margin:0 0 8px">${ok ? 'Connected to GitHub' : 'Sign-in did not finish'}</h1><p style="font-size:14px;line-height:1.5;color:#596068;margin:0">${message.replace(/</g, '&lt;')}</p></div>`;
+}
 
 function broadcast(event: Event): void {
   const data = JSON.stringify(event);
@@ -164,6 +194,47 @@ const server = Bun.serve<undefined>({
       } catch (error) {
         return json({ error: error instanceof Error ? error.message : String(error) }, 401);
       }
+    }
+
+    // @ref LLP 0002 r4 — the login button: the browser flow with a loopback
+    // callback and PKCE. The code is exchanged for a token by whoever holds
+    // the client secret: this sidecar when `.env` has GITHUB_CLIENT_SECRET
+    // (dev), else the hosted exchange endpoint (config.github.oauthExchangeUrl).
+    if (request.method === 'POST' && path === '/oauth/start') {
+      const state = randomBytes(24).toString('base64url');
+      const verifier = randomBytes(48).toString('base64url');
+      const challenge = createHash('sha256').update(verifier).digest('base64url');
+      const redirectUri = `http://127.0.0.1:${port}/oauth/callback`;
+      oauthFlows.set(state, { verifier, redirectUri, token: null, error: null, startedAt: Date.now() });
+      const q = new URLSearchParams({ client_id: config.github.oauthClientId, redirect_uri: redirectUri, scope: config.github.scopes.join(' '), state, code_challenge: challenge, code_challenge_method: 'S256' });
+      return json({ state, url: `https://github.com/login/oauth/authorize?${q}` });
+    }
+
+    if (request.method === 'GET' && path === '/oauth/callback') {
+      const code = url.searchParams.get('code') ?? '';
+      const state = url.searchParams.get('state') ?? '';
+      const flow = oauthFlows.get(state);
+      if (!flow || !code) return new Response(oauthPage('This sign-in link is not one revu started.', false), { status: 400, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      try {
+        const accessToken = await exchangeCode(code, flow.verifier, flow.redirectUri);
+        await setToken(accessToken);
+        flow.token = accessToken;
+        return new Response(oauthPage(`Signed in as ${login}. You can close this tab and go back to revu.`, true), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      } catch (error) {
+        flow.error = error instanceof Error ? error.message : String(error);
+        return new Response(oauthPage(`Sign-in failed: ${flow.error}`, false), { status: 500, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      }
+    }
+
+    // The app polls this on its clock; the token is handed over once.
+    if (request.method === 'GET' && path === '/oauth/result') {
+      const state = url.searchParams.get('state') ?? '';
+      const flow = oauthFlows.get(state);
+      if (!flow) return json({ status: 'unknown' }, 404);
+      if (flow.error) { oauthFlows.delete(state); return json({ status: 'error', error: flow.error }); }
+      if (flow.token) { oauthFlows.delete(state); return json({ status: 'ok', access_token: flow.token, login }); }
+      if (Date.now() - flow.startedAt > 10 * 60_000) { oauthFlows.delete(state); return json({ status: 'expired' }); }
+      return json({ status: 'pending' });
     }
 
     // Dev loop only: the app hands its token here at review time; a local

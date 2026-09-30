@@ -28,6 +28,13 @@ shape DeviceCode
   expiresAt: number
   error: string
 
+shape Browser
+  stamp: number
+  ok: bool
+  state: string
+  url: string
+  error: string
+
 shape Grant
   stamp: number
   status: string
@@ -351,6 +358,7 @@ component Revu
   state secMs = 0
   state doneAnnounced = ""
   state verdict = ""
+  state browserOpened = ""
 
   // @ref exact2 LLP 1027.000.000 — the date is a host fact; now() is ms since launch.
   resource time = exactTime() as shape Time
@@ -378,6 +386,7 @@ component Revu
   // Which window this session draws (LLP 0006 D2): the popover, or "settings".
   resource role = windowRole() as shape WindowRole
 
+  mutation browser as shape Browser
   mutation device as shape DeviceCode refreshes session
   mutation grant as shape Grant refreshes session, inbox
   mutation seen as shape Seen refreshes inbox
@@ -416,15 +425,27 @@ component Revu
   derive prNumber = top(nav).params.number
   derive reviewing = job.status == "queued" or job.status == "preparing" or job.status == "running"
 
-  action startSignIn writes device, grant, nowMs
+  // The button: the browser flow through the sidecar (LLP 0002 r4); the
+  // device code is started alongside as the fallback shown beneath it.
+  action startSignIn writes device, browser, grant, nowMs
     nowMs = time.epochAtZero + now()
     grant = none
+    send browser = browserStart()
     send device = deviceStart(nowMs)
-  action cancelSignIn writes device, grant
+  action openBrowser writes opened
+    match browser
+      case some(b)
+        if b.ok
+          openURL(b.url)
+      case none
+        opened = none
+  action cancelSignIn writes device, browser, grant
     device = none
+    browser = none
     grant = none
-  action doSignOut writes signout, device, grant, nav
+  action doSignOut writes signout, device, browser, grant, nav
     device = none
+    browser = none
     grant = none
     nav = open(nav, "/")
     send signout = signOut()
@@ -521,16 +542,30 @@ component Revu
       if pollMs == 0
         pollMs = nowMs
     else
+      match browser
+        case some(b)
+          if b.ok and not granted and tick % 2 == 0
+            send grant = browserPoll(b.state)
+        case none
+          tick = tick
       match device
         case some(d)
-          if d.ok and not granted and not codeExpired
+          if d.ok and not granted and not codeExpired and tick % 2 == 1
             send grant = devicePoll(d.deviceCode, nowMs)
         case none
           tick = tick
 
-  action second writes secMs, doneAnnounced, reviewOpened, doneNotice
+  action second writes secMs, doneAnnounced, reviewOpened, doneNotice, browserOpened
     if reviewing
       secMs = time.epochAtZero + now()
+    // The browser opens by itself once the sidecar has the sign-in URL.
+    match browser
+      case some(b)
+        if b.ok and browserOpened != b.state
+          browserOpened = b.state
+          openURL(b.url)
+      case none
+        browserOpened = browserOpened
     if isPopover and job.ready and job.status == "done" and doneAnnounced != jobId
       doneAnnounced = jobId
       send doneNotice = notifyDone(jobId, `${prOwner}/${prName} #${prNumber}`, length(job.comments))
@@ -569,8 +604,18 @@ component Revu
           column gap=12
             match device
               case some(d)
+                match browser
+                  case some(b)
+                    when b.ok
+                      text "GitHub opened in your browser — approve revu there and come back." font-size=13 font-weight=500
+                      button press=openBrowser class=Outline align-self="flex-start" testId="open-browser"
+                        text "Open GitHub again"
+                    else
+                      text b.error class=Error testId="browser-error"
+                  case none
+                    box
                 column class=Card testId="device-code"
-                  text "Enter this code at github.com/login/device" class=Tertiary
+                  text "Or enter this code at github.com/login/device" class=Tertiary
                   text d.userCode font-family="ui-monospace" font-size=18 font-weight=600 letter-spacing=2 testId="user-code"
                   button press=openLink(d.verificationUri) class=Ghost height=24 padding-left=0 padding-right=0 align-self="flex-start" color="light-dark(#0072DE, #4aa8ff)" font-size=12 testId="verification-link"
                     text "Open github.com/login/device ↗"
@@ -591,7 +636,7 @@ component Revu
                   Icon(name="log-in", size=16, color="light-dark(#ffffff, #0b0f14)")
                   text "Continue with GitHub"
                 column class=Card
-                  text "You get a one-time code to enter at github.com/login/device." class=Tertiary
+                  text "Opens GitHub in your browser to approve revu. A one-time code is offered as a fallback." class=Tertiary
                 when session.error != ""
                   text session.error class=Error testId="error"
           text "Requests the notifications, repo and read:user scopes. The token is stored in the macOS Keychain." font-size=12 line-height=1.5 color="light-dark(#687076, #6e7781)"

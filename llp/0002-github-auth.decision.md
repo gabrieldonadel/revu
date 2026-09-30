@@ -1,4 +1,4 @@
-# LLP 0002: GitHub authentication is the OAuth device flow
+# LLP 0002: GitHub authentication is the browser flow with a loopback callback; the device code is the fallback
 
 **Type:** Decision
 **Status:** Active
@@ -71,3 +71,30 @@ written to the Keychain. The first seed came from the running app itself
 loopback read it back). Flip the flag to `false` for a signed build and the
 Keychain (`secret.keep`) is the store again; the sidecar's loopback export
 goes with it.
+
+## Revision 4 (2026-09-30): a login button
+
+Gabriel asked why a code and not a button. The answer was GitHub's rule
+that the code → token exchange needs the **client secret** (PKCE is
+"strongly recommended" in addition, never instead), and a desktop app has
+nowhere safe for one. He ruled: the secret lives in a local `.env` for
+development and as an EAS environment variable for the hosted exchange.
+
+So the button is the browser flow with a loopback callback (GitHub
+permits any port on a registered loopback callback URL):
+
+1. `POST /oauth/start` on the sidecar makes `state` and a PKCE verifier and
+   answers the `authorize` URL with `redirect_uri=http://127.0.0.1:<port>/oauth/callback`.
+2. The app opens it (`openURL`); the user approves on GitHub; GitHub
+   redirects to the sidecar's `/oauth/callback`, which shows a small page.
+3. The sidecar exchanges the code: itself when `.env` holds
+   `GITHUB_CLIENT_SECRET` (dev), else through the hosted endpoint
+   (`github.oauthExchangeUrl` in `revu.config.json`, `exchange/` in this
+   repo: an Expo Router API route on EAS Hosting that accepts only revu's
+   loopback `redirect_uri` and keeps nothing).
+4. The app polls `GET /oauth/result?state=` on its clock (alternating with
+   the device-code poll) and stores the token as before.
+
+The device code is started alongside and shown beneath the button, for a
+machine where the browser cannot reach the sidecar's port. The OAuth app's
+callback URL is `http://127.0.0.1/oauth/callback`.

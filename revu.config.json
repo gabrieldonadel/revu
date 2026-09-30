@@ -2,8 +2,13 @@
   "$schema": "./sidecar/config.schema.json",
   "github": {
     "oauthClientId": "Ov23li3weoDK9jZ4ycnp",
-    "scopes": ["notifications", "repo", "read:user"],
-    "pollIntervalSeconds": 60
+    "scopes": [
+      "notifications",
+      "repo",
+      "read:user"
+    ],
+    "pollIntervalSeconds": 60,
+    "oauthExchangeUrl": "https://revu-exchange.expo.app/oauth/exchange"
   },
   "sidecar": {
     "host": "127.0.0.1",

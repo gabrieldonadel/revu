@@ -1,0 +1,22 @@
+{
+  "name": "revu-exchange",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "export": "expo export --platform web",
+    "deploy": "expo export --platform web && eas deploy --prod"
+  },
+  "dependencies": {
+    "expo": "~54.0.0",
+    "expo-router": "~6.0.0",
+    "react": "19.1.0",
+    "react-native": "0.81.4",
+    "react-native-web": "^0.21.0",
+    "react-dom": "19.1.0",
+    "expo-constants": "~18.0.0",
+    "expo-linking": "~8.0.0",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0"
+  }
+}

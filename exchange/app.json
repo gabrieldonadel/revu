@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "revu-exchange",
+    "slug": "revu-exchange",
+    "scheme": "revu-exchange",
+    "web": {
+      "output": "server",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "81427d7b-4dcf-499c-b9f3-0a81a9ab8998"
+      }
+    },
+    "owner": "gabrieldonadel"
+  }
+}

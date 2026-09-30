@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 export interface RevuConfig {
-  github: { oauthClientId: string; scopes: string[]; pollIntervalSeconds?: number };
+  github: { oauthClientId: string; scopes: string[]; pollIntervalSeconds?: number; oauthExchangeUrl?: string };
   sidecar: { host?: string; port?: number };
 }
 
@@ -18,7 +18,7 @@ export function loadConfig(root = resolve(import.meta.dir, '../..')): RevuConfig
     if (!raw.github?.oauthClientId) throw new Error(`${candidate}: github.oauthClientId is required`);
     return raw;
   }
-  return { github: { oauthClientId: 'Ov23li3weoDK9jZ4ycnp', scopes: ['notifications', 'repo', 'read:user'], pollIntervalSeconds: 60 }, sidecar: { host: '127.0.0.1', port: 47831 } };
+  return { github: { oauthClientId: 'Ov23li3weoDK9jZ4ycnp', scopes: ['notifications', 'repo', 'read:user'], pollIntervalSeconds: 60, oauthExchangeUrl: 'https://revu-exchange.expo.app/oauth/exchange' }, sidecar: { host: '127.0.0.1', port: 47831 } };
 }
 
 export const paths = {

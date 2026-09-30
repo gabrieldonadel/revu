@@ -169,6 +169,43 @@ async function deviceStart(now: number): Promise<DeviceCode> {
   }
 }
 
+// --- the browser sign-in (LLP 0002 r4): the sidecar runs the loopback flow ---
+
+type Browser = Result<'browserStart'>;
+
+async function browserStart(): Promise<Browser> {
+  try {
+    const res = await sidecar('/oauth/start', { method: 'POST' });
+    const body = (await res.json()) as Json;
+    if (!res.ok) return { stamp: ++stamp, ok: false, state: '', url: '', error: String(body.error ?? `sidecar answered ${res.status}`) };
+    return { stamp: ++stamp, ok: true, state: String(body.state ?? ''), url: String(body.url ?? ''), error: '' };
+  } catch (e) {
+    return { stamp: ++stamp, ok: false, state: '', url: '', error: 'The sidecar is not running; use the code below instead.' };
+  }
+}
+
+async function browserPoll(store: Store, storage: Storage, state: string): Promise<Grant> {
+  const base: Grant = { stamp: ++stamp, status: 'pending', login: '', error: '' };
+  if (!state) return base;
+  try {
+    const res = await sidecar(`/oauth/result?state=${encodeURIComponent(state)}`);
+    const body = (await res.json()) as Json;
+    switch (body.status) {
+      case 'ok':
+        await saveToken(store, storage, String(body.access_token));
+        return { ...base, status: 'ok', login: String(body.login ?? (await currentSession(store, storage)).login) };
+      case 'error':
+        return { ...base, status: 'error', error: String(body.error ?? 'sign-in failed') };
+      case 'expired':
+        return { ...base, status: 'expired', error: 'The sign-in timed out; start again.' };
+      default:
+        return base;
+    }
+  } catch (e) {
+    return { ...base, error: `The sidecar could not be reached: ${message(e)}` };
+  }
+}
+
 // GitHub's device flow asks for at least `interval` seconds between polls and
 // answers `slow_down` (+5 s) when pushed; the Contract clock is a fixed 5 s, so
 // the source itself skips polls until the next allowed time.
@@ -934,6 +971,8 @@ const sources: Sources = {
   skillSettings: ([selected, rulesStamp, savedStamp], _store, storage) => skillSettings(storage, String(selected ?? ''), Number(rulesStamp), Number(savedStamp)),
   matchSkill: ([repo, rulesStamp], _store, storage) => matchSkill(storage, String(repo ?? ''), Number(rulesStamp)),
   deviceStart: ([now]) => deviceStart(Number(now)),
+  browserStart: () => browserStart(),
+  browserPoll: ([state], store, storage) => browserPoll(store, storage, String(state ?? '')),
   devicePoll: ([code, now], store, storage) => devicePoll(store, storage, String(code), Number(now)),
   signOut: async (_, store, storage) => {
     await forgetToken(store, storage);
