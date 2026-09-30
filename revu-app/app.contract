@@ -239,6 +239,11 @@ keyframes spin
   from rotate=0
   to rotate=360
 
+// A skeleton's sheen (design: `shimmer`): a light band sweeping across.
+keyframes shimmer
+  from translate="-160px 0px"
+  to translate="400px 0px"
+
 style Surface
   width="100%" height="100%" box-sizing="border-box" background-color="light-dark(#ffffff, #0b0f14)" color="light-dark(#11181c, #e6edf3)" font-family="system-ui" font-size=13
 
@@ -607,7 +612,19 @@ component Revu
                 when inbox.ready and inbox.teamCount == 0
                   text "No team requests." class=Tertiary padding-left=16 padding-top=6 padding-bottom=6 testId="empty-team"
               when not inbox.ready
-                text "Loading review requests…" class=Tertiary padding-left=16 padding-top=6 testId="loading"
+                column testId="loading"
+                  row class=Row
+                    box class=Dot background-color="light-dark(#eaecf0, #252932)"
+                    column flex=1 gap=6
+                      Skeleton(w="40%", h=11)
+                      Skeleton(w="92%", h=13)
+                      Skeleton(w="30%", h=11)
+                  row class=Row
+                    box class=Dot background-color="light-dark(#eaecf0, #252932)"
+                    column flex=1 gap=6
+                      Skeleton(w="36%", h=11)
+                      Skeleton(w="78%", h=13)
+                      Skeleton(w="26%", h=11)
           box class=Divider
           row padding-top=10 padding-right=16 padding-bottom=10 padding-left=16 justify-content="space-between" align-items="center"
             text (inbox.ready ? `Synced ${inbox.polledAt} · ${session.login}` : "Syncing…") class=Tertiary testId="synced"
@@ -623,59 +640,102 @@ component Revu
             text `${prOwner}/${prName} #${prNumber}` class=MonoLabel flex=1
             button press=openLink(detail.url) class=IconBtn color="light-dark(#596068, #9aa4ae)" font-size=13 testId="open-on-github"
               text "↗"
-          scroll flex=1 min-height=0
-            column
+          when not detail.ready and detail.error == ""
+            column flex=1 testId="pr-loading"
               column padding-left=16 padding-right=16 padding-bottom=14 gap=10
-                text (detail.ready ? detail.title : "Loading…") font-size=16 font-weight=600 line-height=1.35 letter-spacing=-0.15 testId="pr-title"
-                when detail.ready
+                Skeleton(w="88%", h=18)
+                Skeleton(w="60%", h=18)
+                row gap=8 align-items="center" padding-top=2
+                  box width=18 height=18 border-radius=9999 background-color="light-dark(#eaecf0, #252932)"
+                  Skeleton(w="70%", h=12)
+              box class=Divider
+              column padding=16 padding-top=12 padding-bottom=12 gap=10
+                row gap=16 align-items="center"
+                  text "Checks" class=Tertiary width=56
+                  Skeleton(w="40%", h=12)
+                row gap=16 align-items="center"
+                  text "Changes" class=Tertiary width=56
+                  Skeleton(w="55%", h=12)
+                row gap=16 align-items="center"
+                  text "Skill" class=Tertiary width=56
+                  Skeleton(w="65%", h=12)
+              box class=Divider
+              column padding=16 padding-top=12 padding-bottom=12 gap=8
+                text "Files" class=SectionLabel
+                row justify-content="space-between" gap=12
+                  Skeleton(w="72%", h=12)
+                  Skeleton(w="12%", h=12)
+                row justify-content="space-between" gap=12
+                  Skeleton(w="64%", h=12)
+                  Skeleton(w="12%", h=12)
+                row justify-content="space-between" gap=12
+                  Skeleton(w="80%", h=12)
+                  Skeleton(w="12%", h=12)
+                row justify-content="space-between" gap=12
+                  Skeleton(w="58%", h=12)
+                  Skeleton(w="12%", h=12)
+              box class=Divider
+              column padding=16 padding-top=12 padding-bottom=12 gap=8
+                text "Description" class=SectionLabel
+                Skeleton(w="100%", h=12)
+                Skeleton(w="94%", h=12)
+                Skeleton(w="76%", h=12)
+                Skeleton(w="88%", h=12)
+          when not detail.ready and detail.error != ""
+            column padding=16 gap=8
+              text "The pull request could not be read" font-size=16 font-weight=600
+              text detail.error class=Error testId="pr-error"
+          when detail.ready
+            scroll flex=1 min-height=0
+              column
+                column padding-left=16 padding-right=16 padding-bottom=14 gap=10
+                  text detail.title font-size=16 font-weight=600 line-height=1.35 letter-spacing=-0.15 testId="pr-title"
                   row gap=8 align-items="center"
                     box width=18 height=18 border-radius=9999 background-color="light-dark(#d7dbdf, #30363d)"
                     text `${detail.author} wants to merge ${detail.headRef} into ${detail.baseRef}` class=Secondary line-clamp=1
-                when detail.error != ""
-                  text detail.error class=Error testId="pr-error"
-              box class=Divider
-              column padding=16 padding-top=12 padding-bottom=12 gap=8
-                row gap=16 align-items="center"
-                  text "Checks" class=Tertiary width=56
-                  row gap=6 align-items="center"
-                    box width=8 height=8 border-radius=9999 background-color=(detail.ci == "pass" ? "light-dark(rgb(9, 141, 72), #4ade80)" : detail.ci == "fail" ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : detail.ci == "run" ? "rgb(255, 138, 76)" : "light-dark(#c9d1d9, #484f58)")
-                    text detail.ciLabel font-size=12 testId="pr-checks"
-                row gap=16 align-items="center"
-                  text "Changes" class=Tertiary width=56
-                  row gap=4 class=Mono
-                    text `${detail.files} files ·`
-                    text `+${detail.additions}` color="light-dark(rgb(9, 141, 72), #4ade80)"
-                    text `−${detail.deletions}` color="light-dark(rgb(207, 34, 46), #ff7a7a)"
-                row gap=16 align-items="center"
-                  text "Skill" class=Tertiary width=56
-                  row gap=6 align-items="center"
-                    Icon(name="file-text", size=13, color="light-dark(#687076, #6e7781)")
-                    text `${detail.skill}.md` class=Mono
-                    text `· matched ${detail.skillRule}` class=Tertiary testId="pr-skill"
-              box class=Divider
-              column padding=16 padding-top=12 padding-bottom=12 gap=6
-                text "Files" class=SectionLabel
-                each f in detail.changed key=f.path
-                  row justify-content="space-between" gap=12 class=Mono line-height=1.6
-                    text f.path color="light-dark(#596068, #9aa4ae)" line-clamp=1 flex=1 min-width=0
-                    row gap=4 flex-shrink=0
-                      text `+${f.additions}` color="light-dark(rgb(9, 141, 72), #4ade80)"
-                      text `−${f.deletions}` color="light-dark(rgb(207, 34, 46), #ff7a7a)"
-                when detail.ready and detail.files > length(detail.changed)
-                  text `… and ${detail.files - length(detail.changed)} more` class=Tertiary
-              box class=Divider
-              column padding=16 padding-top=12 padding-bottom=12 gap=6
-                text "Description" class=SectionLabel
-                when detail.body == ""
-                  text "(no description)" class=Secondary testId="pr-body"
-                else
-                  text detail.body markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#596068, #9aa4ae)" testId="pr-body"
+                box class=Divider
+                column padding=16 padding-top=12 padding-bottom=12 gap=8
+                  row gap=16 align-items="center"
+                    text "Checks" class=Tertiary width=56
+                    row gap=6 align-items="center"
+                      box width=8 height=8 border-radius=9999 background-color=(detail.ci == "pass" ? "light-dark(rgb(9, 141, 72), #4ade80)" : detail.ci == "fail" ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : detail.ci == "run" ? "rgb(255, 138, 76)" : "light-dark(#c9d1d9, #484f58)")
+                      text detail.ciLabel font-size=12 testId="pr-checks"
+                  row gap=16 align-items="center"
+                    text "Changes" class=Tertiary width=56
+                    row gap=4 class=Mono
+                      text `${detail.files} files ·`
+                      text `+${detail.additions}` color="light-dark(rgb(9, 141, 72), #4ade80)"
+                      text `−${detail.deletions}` color="light-dark(rgb(207, 34, 46), #ff7a7a)"
+                  row gap=16 align-items="center"
+                    text "Skill" class=Tertiary width=56
+                    row gap=6 align-items="center"
+                      Icon(name="file-text", size=13, color="light-dark(#687076, #6e7781)")
+                      text `${detail.skill}.md` class=Mono
+                      text `· matched ${detail.skillRule}` class=Tertiary testId="pr-skill"
+                box class=Divider
+                column padding=16 padding-top=12 padding-bottom=12 gap=6
+                  text "Files" class=SectionLabel
+                  each f in detail.changed key=f.path
+                    row justify-content="space-between" gap=12 class=Mono line-height=1.6
+                      text f.path color="light-dark(#596068, #9aa4ae)" line-clamp=1 flex=1 min-width=0
+                      row gap=4 flex-shrink=0
+                        text `+${f.additions}` color="light-dark(rgb(9, 141, 72), #4ade80)"
+                        text `−${f.deletions}` color="light-dark(rgb(207, 34, 46), #ff7a7a)"
+                  when detail.ready and detail.files > length(detail.changed)
+                    text `… and ${detail.files - length(detail.changed)} more` class=Tertiary
+                box class=Divider
+                column padding=16 padding-top=12 padding-bottom=12 gap=6
+                  text "Description" class=SectionLabel
+                  when detail.body == ""
+                    text "(no description)" class=Secondary testId="pr-body"
+                  else
+                    text detail.body markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#596068, #9aa4ae)" testId="pr-body"
           box class=Divider
           row padding=12 padding-left=16 padding-right=16 gap=8
-            button press=runReview class=PrimarySm flex=1 disabled=(not detail.ready or not sidecar.reachable) testId="run-review"
+            button press=runReview class=PrimarySm flex=1 disabled=(not detail.ready or not sidecar.reachable) opacity=(detail.ready ? 1 : 0.5) testId="run-review"
               Icon(name="sparkles", size=14, color="light-dark(#ffffff, #0b0f14)")
               text (sidecar.reachable ? "Run AI review" : "Sidecar offline")
-            button press=openLink(`${detail.url}/files`) class=Outline testId="open-diff"
+            button press=openLink(`${detail.url}/files`) class=Outline disabled=(not detail.ready) opacity=(detail.ready ? 1 : 0.5) testId="open-diff"
               text "Open diff"
 
       // ---- 1d / 1e Popover — AI review in progress, then the results -----
@@ -691,7 +751,9 @@ component Revu
                 text `${job.skill}.md · ${elapsedNow.text}` class=Tertiary
           when not job.ready
             column padding=16 gap=6
-              text "Starting the review…" font-size=16 font-weight=600
+              row gap=10 align-items="center"
+                box width=14 height=14 border-radius=9999 border-style="solid" border-width=2 border-color="light-dark(#d7dbdf, #30363d)" border-top-color="light-dark(#11181c, #e6edf3)" box-sizing="border-box" animation="spin 900ms linear infinite"
+                text "Starting the review…" font-size=16 font-weight=600
               match started
                 case some(s)
                   when s.error != ""
@@ -914,6 +976,15 @@ component Revu
                       case none
                         box
                         box
+
+// A skeleton bar while data loads: a rounded block with a sweeping sheen.
+component Skeleton
+  props
+    w: string
+    h: number
+  view
+    box width=w height=h border-radius=4 background-color="light-dark(#eaecf0, #252932)" overflow="hidden" flex-shrink=0
+      box width=160 height=h background-image="linear-gradient(90deg, rgba(255, 255, 255, 0), light-dark(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.08)), rgba(255, 255, 255, 0))" animation="shimmer 1.4s ease-in-out infinite"
 
 // One step of a running review (design 1d): done → a green dot with a
 // check, active → a spinner, pending → a faint ring.
