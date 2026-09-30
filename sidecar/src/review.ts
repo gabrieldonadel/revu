@@ -38,6 +38,7 @@ export interface ReviewJob {
   startedAt: string;
   finishedAt: string | null;
   output: string; // streamed progress so far
+  lastOutputAt: string | null; // when the agent last said anything
   error: string | null;
   worktree: string | null; // the scratch directory — never a checkout
   result: ReviewResult | null; // the skill's JSON, read after the run
@@ -177,7 +178,9 @@ export function buildPrompt(request: ReviewRequest, skill: string): string {
     'Nothing is checked out locally and nothing may be cloned: read the pull request',
     `through \`gh\` only — \`gh pr diff ${url}\`, \`gh pr view ${url}\`, and \`gh api\` for the`,
     'contents of files you need (e.g. `gh api repos/{owner}/{repo}/contents/{path}?ref=<sha>`).',
-    'The current directory is an empty scratch directory.',
+    'The current directory is an empty scratch directory. You have NO Read, Grep, Glob, Task or',
+    'Explore tools here — do not try them; every look at code is one `gh api` call (a file at',
+    'the head sha, a tree listing, or `gh search code`). Batch what you need; keep the review focused.',
     '',
     `Write the findings JSON to ${resultPath(request)} exactly as the skill describes, then stop.`,
     'Do NOT run post-review.ts and do NOT post anything to GitHub: revu previews the',
@@ -290,6 +293,7 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
     startedAt: new Date().toISOString(),
     finishedAt: null,
     output: '',
+    lastOutputAt: null,
     error: null,
     worktree: null,
     result: null,
@@ -299,6 +303,15 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
   jobs.set(job.id, job);
   const controller = new AbortController();
   controllers.set(job.id, controller);
+  // A review that has not ended in 20 minutes is stuck, not thorough.
+  const deadline = setTimeout(() => {
+    if (job.status === 'done' || job.status === 'failed') return;
+    job.status = 'failed';
+    job.error = 'no result after 20 minutes; the agent was stopped';
+    job.finishedAt = new Date().toISOString();
+    controller.abort();
+    onChange(job);
+  }, 20 * 60_000);
   void (async () => {
     try {
       job.status = 'preparing';
@@ -318,6 +331,7 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
         signal: controller.signal,
         onChunk: (text) => {
           job.output += text;
+          job.lastOutputAt = new Date().toISOString();
           onChange(job);
         },
       });
@@ -351,6 +365,7 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
         job.error = error instanceof Error ? error.message : String(error);
       }
     } finally {
+      clearTimeout(deadline);
       controllers.delete(job.id);
       job.finishedAt = new Date().toISOString();
       onChange(job);
