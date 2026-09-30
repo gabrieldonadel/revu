@@ -92,9 +92,15 @@ export function writeSkill(name: string, content: string): { name: string; path:
 
 export const DEFAULT_SKILL = 'deep-code-review';
 
-export function loadSkill(name = DEFAULT_SKILL): string {
-  const skill = listSkills().find((s) => s.name === name);
-  if (!skill) throw new Error(`no skill named ${name} (looked in ${skillDirs.join(', ')})`);
+/** The named skill's text; a rule naming a skill that is not there falls back to the default, loudly. */
+export function loadSkill(name = DEFAULT_SKILL, onChunk?: (text: string) => void): string {
+  const skills = listSkills();
+  let skill = skills.find((s) => s.name === name);
+  if (!skill) {
+    onChunk?.(`no skill named ${name}; using ${DEFAULT_SKILL}\n`);
+    skill = skills.find((s) => s.name === DEFAULT_SKILL);
+  }
+  if (!skill) throw new Error(`no skill named ${name} and no ${DEFAULT_SKILL} (looked in ${skillDirs.join(', ')})`);
   return readFileSync(skill.path, 'utf8');
 }
 
@@ -220,7 +226,7 @@ export function startReview(request: ReviewRequest, token: string, runner: Runne
       job.worktree = scratchDir(request);
       job.status = 'running';
       onChange(job);
-      const skill = loadSkill(request.skill);
+      const skill = loadSkill(request.skill, (text) => { job.output += text; onChange(job); });
       const prompt = buildPrompt(request, skill);
       const final = await runner.run({
         worktree: job.worktree,

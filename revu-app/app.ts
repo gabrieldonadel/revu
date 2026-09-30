@@ -24,6 +24,43 @@ const DEFAULT_SKILL = 'deep-code-review';
 const DEFAULT_AGENT = 'claude';
 
 type Store = Parameters<Answer>[2];
+
+// @ref LLP 0002 (dev loop) — the token lives in the app's SQLite (settings
+// `github.token`) instead of the Keychain while builds are ad-hoc signed:
+// every rebuild is a new app to the Keychain and asks for the login password.
+// Set to false to go back to `secret.keep` (the Keychain) for a signed build.
+const TOKEN_IN_DB = true;
+let tokenCache: string | null = null;
+let tokenLoaded = false;
+
+async function loadToken(store: Store, storage: Storage): Promise<string> {
+  if (!TOKEN_IN_DB) return store.get('github.token') ?? '';
+  if (tokenLoaded) return tokenCache ?? '';
+  try {
+    tokenCache = await withDb(storage, async (db) => {
+      const rows = await db.query("SELECT value FROM settings WHERE key = 'github.token'");
+      return rows.rows.length ? String(rows.rows[0]![0]) : null;
+    });
+  } catch {
+    tokenCache = null;
+  }
+  tokenLoaded = true;
+  return tokenCache ?? '';
+}
+
+async function saveToken(store: Store, storage: Storage, token: string): Promise<void> {
+  if (!TOKEN_IN_DB) { store.set('github.token', token); return; }
+  tokenCache = token;
+  tokenLoaded = true;
+  await withDb(storage, (db) => db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('github.token', ?)", [token]));
+}
+
+async function forgetToken(store: Store, storage: Storage): Promise<void> {
+  if (!TOKEN_IN_DB) { store.forget('github.token'); return; }
+  tokenCache = null;
+  tokenLoaded = true;
+  try { await withDb(storage, (db) => db.execute("DELETE FROM settings WHERE key = 'github.token'")); } catch { /* nothing kept */ }
+}
 type Session = Result<'currentSession'>;
 type Inbox = Result<'reviewRequests'>;
 type Review = Inbox['mine'][number];
@@ -63,7 +100,7 @@ function elapsed(fromIso: string, toIso: string | null, now: number): string {
 }
 
 async function gh(store: Store, path: string, init: RequestInit = {}): Promise<Response> {
-  const token = store.get('github.token');
+  const token = TOKEN_IN_DB ? tokenCache : store.get('github.token');
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
     'User-Agent': UA,
@@ -85,12 +122,12 @@ async function sidecar(path: string, init: RequestInit = {}): Promise<Response> 
 
 const signedOut: Session = { signedIn: false, login: '', error: '' };
 
-async function currentSession(store: Store): Promise<Session> {
-  if (!store.get('github.token')) return signedOut;
+async function currentSession(store: Store, storage: Storage): Promise<Session> {
+  if (!(await loadToken(store, storage))) return signedOut;
   try {
     const res = await gh(store, '/user');
     if (res.status === 401) {
-      store.forget('github.token');
+      await forgetToken(store, storage);
       return { ...signedOut, error: 'GitHub rejected the saved token; sign in again.' };
     }
     if (!res.ok) return { ...signedOut, error: `GitHub answered ${res.status}.` };
@@ -135,7 +172,7 @@ async function deviceStart(now: number): Promise<DeviceCode> {
 // the source itself skips polls until the next allowed time.
 const pollNotBefore = new Map<string, number>();
 
-async function devicePoll(store: Store, deviceCode: string, now: number): Promise<Grant> {
+async function devicePoll(store: Store, storage: Storage, deviceCode: string, now: number): Promise<Grant> {
   const base: Grant = { stamp: ++stamp, status: 'pending', login: '', error: '' };
   const notBefore = pollNotBefore.get(deviceCode) ?? 0;
   if (now < notBefore) return base;
@@ -148,8 +185,8 @@ async function devicePoll(store: Store, deviceCode: string, now: number): Promis
     });
     const body = (await res.json()) as Json;
     if (body.access_token) {
-      store.set('github.token', String(body.access_token));
-      const me = await currentSession(store);
+      await saveToken(store, storage, String(body.access_token));
+      const me = await currentSession(store, storage);
       return { ...base, status: 'ok', login: me.login };
     }
     switch (body.error) {
@@ -280,7 +317,7 @@ async function search(store: Store, q: string): Promise<Json[]> {
 }
 
 async function reviewRequests(store: Store, storage: Storage, login: string, pollMs: number, epoch: number, _actionsStamp: number): Promise<Inbox> {
-  if (!store.get('github.token')) return emptyInbox;
+  if (!(await loadToken(store, storage))) return emptyInbox;
   const now = pollMs || epoch;
   let items: Json[];
   let direct: Set<string>;
@@ -371,7 +408,7 @@ async function markSeen(storage: Storage, id: string): Promise<Result<'markSeen'
 const emptyDetail: PrDetail = { ready: false, id: '', repo: '', number: 0, title: '', url: '', author: '', baseRef: '', headRef: '', headSha: '', baseSha: '', ci: 'none', ciLabel: '', files: 0, additions: 0, deletions: 0, changed: [], body: '', skill: DEFAULT_SKILL, skillRule: '*', error: '' };
 
 async function prDetail(store: Store, storage: Storage, owner: string, name: string, number: string, _rulesStamp: number): Promise<PrDetail> {
-  if (!owner || !name || !number || !store.get('github.token')) return emptyDetail;
+  if (!owner || !name || !number || !(await loadToken(store, storage))) return emptyDetail;
   const repo = `${owner}/${name}`;
   const n = Number(number);
   try {
@@ -526,7 +563,7 @@ async function sidecarStatus(): Promise<Result<'sidecarStatus'>> {
 }
 
 async function startReview(store: Store, storage: Storage, id: string, skill: string): Promise<Result<'startReview'>> {
-  const token = store.get('github.token');
+  const token = await loadToken(store, storage);
   const [repo, number] = id.split('#');
   if (!token || !repo || !number) return { stamp: ++stamp, id: '', error: 'Nothing to review.' };
   const [owner, name] = repo.split('/');
@@ -719,7 +756,7 @@ async function requestNotificationPermission(native: Native): Promise<NotifyStat
  *  `announced` flag is what makes each fire exactly once across restarts. */
 async function announceNew(store: Store, storage: Storage, native: Native, now: number): Promise<Announced> {
   const n = notifier(native);
-  if (!n || !store.get('github.token')) return { stamp: ++stamp, count: 0, error: n ? '' : 'notifier unavailable' };
+  if (!n || !(await loadToken(store, storage))) return { stamp: ++stamp, count: 0, error: n ? '' : 'notifier unavailable' };
   // The OS accepts a post silently while permission is undecided or denied;
   // posting then would burn the once-only `announced` flag on a banner no one
   // saw. Leave the row unannounced until the user has granted.
@@ -829,7 +866,7 @@ const sources: Sources = {
   announceNew: ([now], store, storage, native) => announceNew(store, storage, native, Number(now)),
   notificationActions: ([now], _store, storage, native) => notificationActions(storage, native, Number(now)),
   sidecarStatus: () => sidecarStatus(),
-  currentSession: (_, store) => currentSession(store),
+  currentSession: (_, store, storage) => currentSession(store, storage),
   reviewRequests: ([login, pollMs, epoch, actionsStamp], store, storage) => reviewRequests(store, storage, String(login ?? ''), Number(pollMs), Number(epoch), Number(actionsStamp)),
   prDetail: ([owner, name, number, rulesStamp], store, storage) => prDetail(store, storage, String(owner ?? ''), String(name ?? ''), String(number ?? ''), Number(rulesStamp)),
   reviewJob: ([jobId, tick, epoch, toggled, posted]) => reviewJob(String(jobId ?? ''), Number(tick), Number(epoch), Number(toggled), Number(posted)),
@@ -840,9 +877,9 @@ const sources: Sources = {
   skillSettings: ([selected, rulesStamp, savedStamp], _store, storage) => skillSettings(storage, String(selected ?? ''), Number(rulesStamp), Number(savedStamp)),
   matchSkill: ([repo, rulesStamp], _store, storage) => matchSkill(storage, String(repo ?? ''), Number(rulesStamp)),
   deviceStart: ([now]) => deviceStart(Number(now)),
-  devicePoll: ([code, now], store) => devicePoll(store, String(code), Number(now)),
-  signOut: (_, store) => {
-    store.forget('github.token');
+  devicePoll: ([code, now], store, storage) => devicePoll(store, storage, String(code), Number(now)),
+  signOut: async (_, store, storage) => {
+    await forgetToken(store, storage);
     return { ...signedOut };
   },
   markSeen: ([id], _store, storage) => markSeen(storage, String(id)),

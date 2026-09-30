@@ -59,3 +59,15 @@ again after a rebuild. Worth raising with exact2 as a dev-loop paper cut:
 the runner's kept answers (`exact.kept.*`) live in the same Keychain service
 and multiply the prompts.
 
+## Revision 3 (2026-09-30): the token in the app's own store while builds are ad-hoc signed
+
+Gabriel: "I can't keep reentering the password all the time." While there is
+no signing identity, each rebuild is a new app to the Keychain and reading
+the item asks for the login password. So `app.ts` keeps the token in the
+app's SQLite (`settings.github.token`, under the app's data directory,
+readable by the user account only) behind `TOKEN_IN_DB = true`; nothing is
+written to the Keychain. The first seed came from the running app itself
+(it hands the token to the sidecar at review time; `GET /auth/token` on
+loopback read it back). Flip the flag to `false` for a signed build and the
+Keychain (`secret.keep`) is the store again; the sidecar's loopback export
+goes with it.

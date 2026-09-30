@@ -166,6 +166,12 @@ const server = Bun.serve<undefined>({
       }
     }
 
+    // Dev loop only: the app hands its token here at review time; a local
+    // tool may read it back to seed the app's own store (loopback only).
+    if (request.method === 'GET' && path === '/auth/token') {
+      return token ? json({ access_token: token, login }) : json({ error: 'no token yet' }, 404);
+    }
+
     if (request.method === 'DELETE' && path === '/auth/token') {
       clearToken();
       return json({ ok: true });
