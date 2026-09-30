@@ -677,6 +677,19 @@ async function postComments(jobId: string): Promise<Result<'postComments'>> {
   }
 }
 
+/** The summary's overall part, as plain text: up to its findings heading
+ *  (the comments carry those), heading markers and emphasis stripped. */
+function overall(summary: string): string {
+  const cut = summary.search(/^#{1,6}\s*findings/im);
+  const head = cut > 0 ? summary.slice(0, cut) : summary;
+  return head
+    .split('\n')
+    .map((l) => l.replace(/^#{1,6}\s*/, '').replace(/\*\*(.+?)\*\*/g, '$1').trim())
+    .filter((l) => l && !/^overall$/i.test(l))
+    .join('\n')
+    .slice(0, 900);
+}
+
 const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, agent: DEFAULT_AGENT, step: 0, progress: 0, elapsed: '0:00', log: [], summary: '', verdict: '', hasResult: false, comments: [], chosenCount: 0, posted: false, postedUrl: '', postedCount: 0, error: '' };
 
 async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: number, _posted: number): Promise<Job> {
@@ -711,7 +724,7 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
       progress,
       elapsed: elapsed(String(body.startedAt ?? ''), body.finishedAt ? String(body.finishedAt) : null, now),
       log: lines.slice(-3),
-      summary: result ? String(result.summary ?? '') : status === 'done' ? output.trim().slice(0, 600) : '',
+      summary: result ? overall(String(result.summary ?? '')) : status === 'done' ? output.trim().slice(0, 600) : '',
       verdict: String(result?.verdict ?? 'COMMENT'),
       hasResult: result !== null,
       comments,
