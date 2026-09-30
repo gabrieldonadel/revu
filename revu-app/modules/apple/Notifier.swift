@@ -57,6 +57,7 @@ final class Notifier: ExactModule {
             if MenuBar.shared == nil {
                 menuBar = MenuBar()
                 MenuBar.shared = menuBar
+                Sidecar.startIfNeeded()
             } else {
                 role = MenuBar.pendingRole ?? "window"
                 MenuBar.pendingRole = nil
@@ -535,6 +536,55 @@ final class MenuBar: NSObject {
         let image = NSImage(size: size, flipped: false) { _ in true }
         image.isTemplate = true
         return image
+    }
+}
+
+/// The packaged sidecar (LLP 0007): `revu.app/Contents/Resources/revu-sidecar`,
+/// a compiled Bun binary, started by the app when nothing answers on the
+/// loopback port, and stopped when the app quits. A sidecar started by hand
+/// (`bun run sidecar`) is left alone.
+enum Sidecar {
+    private static var process: Process?
+
+    static func startIfNeeded() {
+        guard let url = Bundle.main.resourceURL?.appendingPathComponent("revu-sidecar"),
+              FileManager.default.isExecutableFile(atPath: url.path) else { return }
+        health { alive in
+            guard !alive, process == nil else { return }
+            let p = Process()
+            p.executableURL = url
+            p.currentDirectoryURL = url.deletingLastPathComponent()
+            var env = ProcessInfo.processInfo.environment
+            env["REVU_PACKAGED"] = "1"
+            env["PATH"] = [env["PATH"] ?? "", "\(NSHomeDirectory())/.local/bin", "\(NSHomeDirectory())/.bun/bin", "/opt/homebrew/bin", "/usr/local/bin"].joined(separator: ":")
+            p.environment = env
+            let log = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/revu-sidecar.log")
+            FileManager.default.createFile(atPath: log.path, contents: nil)
+            if let handle = try? FileHandle(forWritingTo: log) {
+                handle.seekToEndOfFile()
+                p.standardOutput = handle
+                p.standardError = handle
+            }
+            do {
+                try p.run()
+                process = p
+                NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+                    process?.terminate()
+                }
+            } catch {
+                NSLog("revu: the sidecar did not start: %@", error.localizedDescription)
+            }
+        }
+    }
+
+    private static func health(_ done: @escaping (Bool) -> Void) {
+        guard let url = URL(string: "http://127.0.0.1:47831/health") else { return done(false) }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 1.5
+        URLSession.shared.dataTask(with: request) { _, response, _ in
+            let alive = (response as? HTTPURLResponse)?.statusCode == 200
+            DispatchQueue.main.async { done(alive) }
+        }.resume()
     }
 }
 

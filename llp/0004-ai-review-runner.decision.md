@@ -31,10 +31,12 @@ runner's task prompt tells the agent to write that JSON and stop — never to
 run `post-review.ts` — because posting is the app's (design 1e).
 
 **Posting is the user's click.** The results screen shows the summary, the
-verdict, and each comment with a checkbox; "Post N comments" hands the
-chosen subset to the skill's own `post-review.ts post`, which re-resolves
-each line against the live diff and stages a **pending** review the user
-finishes on GitHub. The sidecar runs the script with the app's token.
+verdict, and each comment with a checkbox; "Post N comments" stages the
+chosen subset as a **pending** review the user finishes on GitHub. The
+sidecar does what the skill's `post-review.ts post` does, natively (a
+packaged sidecar has no `bun` to run the script): each comment's line is
+re-resolved against the live diff (`line_content` wins), a comment whose
+line is not in the diff is dropped and reported, never guessed.
 
 ## How progress reaches the window
 

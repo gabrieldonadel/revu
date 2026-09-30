@@ -12,7 +12,16 @@ A macOS app for reviewing GitHub pull requests, built on
   bundled app lives in the menu bar and its window is the popover.
 - **`sidecar/`** — Bun daemon that runs AI reviews on your local agent CLI (Claude Code or Codex, Settings ▸ Model; LLP 0004). It never checks your code out: the agent reads the PR through `gh`. Default skill: `skills/deep-code-review/`.
 
-## Run
+## Install (release)
+
+Download `revu-<version>-macos-arm64.zip` from
+[Releases](https://github.com/gabrieldonadel/revu/releases), unzip, move
+`revu.app` to Applications. The first open needs **right-click → Open**
+(the build is ad-hoc signed; LLP 0007). revu lives in the menu bar; it
+starts its own sidecar. You need `gh` and either Claude Code (`claude`) or
+the Codex CLI (`codex`) installed and signed in for AI reviews.
+
+## Run (from source)
 
 Requires a sibling `../exact2` checkout and its prerequisites (Bun 1.4.2,
 Rust 1.97, the vanilla Hermes engine built by a sibling `../ibex`).

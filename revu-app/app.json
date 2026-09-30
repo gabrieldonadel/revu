@@ -1,5 +1,6 @@
 {
   "name": "revu",
+  "version": "0.1.0-rc.1",
   "short_name": "revu",
   "id": "dev.donadel.revu",
   "start_url": "/",

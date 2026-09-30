@@ -4,7 +4,7 @@
 import { mkdirSync, existsSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { paths } from './config.ts';
+import { bundleDir, paths } from './config.ts';
 
 export interface ReviewRequest {
   repo: string; // owner/name
@@ -42,7 +42,7 @@ export interface ReviewJob {
   worktree: string | null; // the scratch directory — never a checkout
   result: ReviewResult | null; // the skill's JSON, read after the run
   resultPath: string | null;
-  posted: { reviewId: number; url: string; count: number } | null;
+  posted: { reviewId: number; url: string; count: number; dropped: string[] } | null;
 }
 
 /** What a runner must provide; the choice of runner is LLP 0004's decision. */
@@ -55,6 +55,8 @@ export interface Runner {
 const skillDirs = [
   resolve(`${process.env.HOME}/.config/revu/skills`),
   resolve(import.meta.dir, '../../skills'),
+  // A packaged sidecar (inside revu.app/Contents/Resources) ships its skills beside it.
+  resolve(bundleDir, 'skills'),
 ];
 
 export function listSkills(): Array<{ name: string; path: string; description: string }> {
@@ -187,23 +189,70 @@ export function buildPrompt(request: ReviewRequest, skill: string): string {
   ].join('\n');
 }
 
-/** Stage the chosen comments as a PENDING review on GitHub through the
- *  skill's own script (`post-review.ts post`), which re-resolves each
- *  comment's line against the live diff. Returns the review's id and URL. */
-export async function postReview(job: ReviewJob, chosen: number[], token: string): Promise<{ reviewId: number; url: string; count: number }> {
+/** The pull request's diff on the new side: for each file, the right-side
+ *  line numbers the diff shows and their text — what a review comment can
+ *  anchor to. From the API's per-file `patch` (no clone, no `gh`). */
+async function rightSideLines(request: ReviewRequest, token: string): Promise<Map<string, Map<number, string>>> {
+  const files = new Map<string, Map<number, string>>();
+  for (let page = 1; page <= 10; page += 1) {
+    const res = await fetch(`https://api.github.com/repos/${request.repo}/pulls/${request.number}/files?per_page=100&page=${page}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'revu-sidecar' },
+    });
+    if (!res.ok) throw new Error(`GitHub answered ${res.status} for the diff`);
+    const list = (await res.json()) as Array<{ filename: string; patch?: string }>;
+    for (const f of list) {
+      const lines = new Map<number, string>();
+      let right = 0;
+      for (const line of (f.patch ?? '').split('\n')) {
+        const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+        if (hunk) { right = Number(hunk[1]); continue; }
+        if (line.startsWith('-')) continue;
+        if (line.startsWith('\\')) continue;
+        lines.set(right, line.slice(1));
+        right += 1;
+      }
+      files.set(f.filename, lines);
+    }
+    if (list.length < 100) break;
+  }
+  return files;
+}
+
+/** Stage the chosen comments as a PENDING review on GitHub (no `event`),
+ *  each line re-resolved against the live diff the way the skill's own
+ *  post-review.ts does: `line_content` wins over the number when it is
+ *  found; a comment whose line is not in the diff is dropped, not guessed.
+ *  Returns the review's id and URL. */
+export async function postReview(job: ReviewJob, chosen: number[], token: string): Promise<{ reviewId: number; url: string; count: number; dropped: string[] }> {
   if (!job.result) throw new Error('nothing to post: the review has no result');
-  const skill = listSkills().find((s) => s.name === (job.request.skill ?? DEFAULT_SKILL));
-  const script = skill ? resolve(skill.path, '..', 'post-review.ts') : '';
-  if (!script || !existsSync(script)) throw new Error('this skill has no post-review.ts');
-  const comments = job.result.comments.filter((_, i) => chosen.includes(i));
-  const subset = { ...job.result, comments };
-  const file = `/tmp/revu-post-${job.request.number}-${Date.now()}.json`;
-  writeFileSync(file, JSON.stringify(subset, null, 2));
-  const env = { GITHUB_TOKEN: token, GH_TOKEN: token, PATH: [process.env.PATH, `${process.env.HOME}/.bun/bin`, '/opt/homebrew/bin', '/usr/local/bin'].filter(Boolean).join(':') };
-  const out = await sh([process.execPath, 'run', script, 'post', file], job.worktree ?? '/tmp', env);
-  const id = /review ID: (\d+)/.exec(out)?.[1];
-  if (!id) throw new Error(`post-review.ts posted nothing: ${out.trim().split('\n').slice(-3).join(' ')}`);
-  const posted = { reviewId: Number(id), url: `${job.result.pr_url}/files`, count: comments.length };
+  const wanted = job.result.comments.filter((_, i) => chosen.includes(i));
+  if (wanted.length === 0) throw new Error('no comments chosen');
+  const diff = await rightSideLines(job.request, token);
+  const dropped: string[] = [];
+  const comments: Array<{ path: string; line: number; side: string; body: string }> = [];
+  for (const c of wanted) {
+    const lines = diff.get(c.path);
+    if (!lines) { dropped.push(`${c.path}: not in the diff`); continue; }
+    let line = c.line;
+    if (c.line_content) {
+      const needle = c.line_content.trim();
+      const hits = [...lines.entries()].filter(([, text]) => text.includes(needle)).map(([n]) => n);
+      if (hits.length) line = hits.reduce((best, n) => (Math.abs(n - c.line) < Math.abs(best - c.line) ? n : best), hits[0]!);
+    }
+    if (!lines.has(line)) { dropped.push(`${c.path}:${c.line}: line not in the diff`); continue; }
+    const label = c.severity === 'critical' ? '🔴 **critical**' : c.severity === 'design' ? '🟡 **design**' : c.severity === 'suggestion' ? '🔵 **suggestion**' : '⚪ **nit**';
+    comments.push({ path: c.path, line, side: c.side || 'RIGHT', body: `${label} — ${c.body}` });
+  }
+  if (comments.length === 0) throw new Error(`nothing could be anchored to the diff: ${dropped.join('; ')}`);
+  const verdict = job.result.verdict === 'APPROVE' ? '✅ APPROVE' : job.result.verdict === 'REQUEST_CHANGES' ? '🔴 REQUEST_CHANGES' : '💬 COMMENT';
+  const res = await fetch(`https://api.github.com/repos/${job.request.repo}/pulls/${job.request.number}/reviews`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'revu-sidecar', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body: `**Suggested verdict: ${verdict}**\n\n${job.result.summary}`, comments }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { id?: number; html_url?: string; message?: string };
+  if (!res.ok) throw new Error(`GitHub refused the review (${res.status}): ${body.message ?? ''}`);
+  const posted = { reviewId: Number(body.id ?? 0), url: `${job.result.pr_url}/files`, count: comments.length, dropped };
   job.posted = posted;
   return posted;
 }
