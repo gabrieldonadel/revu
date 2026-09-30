@@ -686,7 +686,7 @@ function overall(summary: string): string {
   return head.replace(/^#{1,6}\s*overall\s*$/im, '').trim();
 }
 
-const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, agent: DEFAULT_AGENT, step: 0, progress: 0, elapsed: '0:00', log: [], calls: 0, summary: '', verdict: '', hasResult: false, comments: [], chosenCount: 0, posted: false, postedUrl: '', postedCount: 0, error: '' };
+const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, agent: DEFAULT_AGENT, step: 0, progress: 0, elapsed: '0:00', startedAt: '', finishedAt: '', log: [], calls: 0, summary: '', verdict: '', hasResult: false, comments: [], chosenCount: 0, posted: false, postedUrl: '', postedCount: 0, error: '' };
 
 async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: number, _posted: number): Promise<Job> {
   if (!jobId) return emptyJob;
@@ -719,6 +719,8 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
       step,
       progress,
       elapsed: elapsed(String(body.startedAt ?? ''), body.finishedAt ? String(body.finishedAt) : null, now),
+      startedAt: String(body.startedAt ?? ''),
+      finishedAt: body.finishedAt ? String(body.finishedAt) : '',
       log: lines.slice(-3),
       calls: lines.filter((l) => /\$ gh /.test(l)).length,
       summary: result ? overall(String(result.summary ?? '')) : status === 'done' ? output.trim().slice(0, 600) : '',
@@ -734,6 +736,12 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
   } catch (e) {
     return { ...emptyJob, id: jobId, status: 'failed', error: `The sidecar could not be reached: ${message(e)}` };
   }
+}
+
+/** The running review's elapsed time, re-asked each second by the app's 1 s clock (wall-clock ms). */
+function elapsedSince(startedAt: string, finishedAt: string, nowMs: number): Result<'elapsedSince'> {
+  if (!startedAt) return { text: '0:00' };
+  return { text: elapsed(startedAt, finishedAt || null, nowMs || Date.parse(startedAt)) };
 }
 
 async function cancelReview(jobId: string): Promise<Result<'cancelReview'>> {
@@ -909,6 +917,7 @@ const sources: Sources = {
   markSeen: ([id], _store, storage) => markSeen(storage, String(id)),
   startReview: ([id, skill], store, storage) => startReview(store, storage, String(id ?? ''), String(skill ?? DEFAULT_SKILL)),
   cancelReview: ([jobId]) => cancelReview(String(jobId ?? '')),
+  elapsedSince: ([startedAt, finishedAt, nowMs]) => elapsedSince(String(startedAt ?? ''), String(finishedAt ?? ''), Number(nowMs)),
   addRule: ([pattern, skill], _store, storage) => addRule(storage, String(pattern ?? ''), String(skill ?? '')),
   removeRule: ([pattern], _store, storage) => removeRule(storage, String(pattern ?? '')),
   saveSkill: ([name, content]) => saveSkill(String(name ?? ''), String(content ?? '')),

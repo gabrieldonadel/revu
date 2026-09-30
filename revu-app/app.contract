@@ -113,6 +113,8 @@ shape Job
   step: number
   progress: number
   elapsed: string
+  startedAt: string
+  finishedAt: string
   log: list<string>
   calls: number
   summary: string
@@ -124,6 +126,9 @@ shape Job
   postedUrl: string
   postedCount: number
   error: string
+
+shape Elapsed
+  text: string
 
 shape Agents
   current: string
@@ -235,7 +240,7 @@ keyframes spin
   to rotate=360
 
 style Surface
-  width="100%" height="100%" box-sizing="border-box" background-color="#ffffff" color="#11181c" font-family="system-ui" font-size=13
+  width="100%" height="100%" box-sizing="border-box" background-color="light-dark(#ffffff, #0b0f14)" color="light-dark(#11181c, #e6edf3)" font-family="system-ui" font-size=13
 
 style Header
   padding-top=14 padding-right=16 padding-bottom=10 padding-left=16 justify-content="space-between" align-items="center"
@@ -247,49 +252,49 @@ style IconBtn
   display="flex" flex-direction="row" width=28 height=28 border-radius=6 align-items="center" justify-content="center" background-color="transparent" border-width=0 padding=0
 
 style Chip
-  display="flex" flex-direction="row" height=26 padding-left=10 padding-right=10 border-radius=6 font-size=12 font-weight=500 color="#596068" align-items="center" gap=6 background-color="transparent" border-width=0
+  display="flex" flex-direction="row" height=26 padding-left=10 padding-right=10 border-radius=6 font-size=12 font-weight=500 color="light-dark(#596068, #9aa4ae)" align-items="center" gap=6 background-color="transparent" border-width=0
 
 style ChipOn
-  display="flex" flex-direction="row" height=26 padding-left=10 padding-right=10 border-radius=6 font-size=12 font-weight=500 color="#11181c" align-items="center" gap=6 background-color="#eaecf0" border-width=0
+  display="flex" flex-direction="row" height=26 padding-left=10 padding-right=10 border-radius=6 font-size=12 font-weight=500 color="light-dark(#11181c, #e6edf3)" align-items="center" gap=6 background-color="light-dark(#eaecf0, #252932)" border-width=0
 
 style Divider
-  height=1 background-color="#eaecf0" width="100%"
+  height=1 background-color="light-dark(#eaecf0, #252932)" width="100%"
 
 style SectionLabel
-  font-size=11 letter-spacing=0.9 text-transform="uppercase" color="#687076" font-weight=600
+  font-size=11 letter-spacing=0.9 text-transform="uppercase" color="light-dark(#687076, #6e7781)" font-weight=600
 
 style Mono
   font-family="ui-monospace" font-size=12
 
 style MonoLabel
-  font-family="ui-monospace" font-size=12 color="#687076"
+  font-family="ui-monospace" font-size=12 color="light-dark(#687076, #6e7781)"
 
 style Secondary
-  font-size=12 color="#596068"
+  font-size=12 color="light-dark(#596068, #9aa4ae)"
 
 style Tertiary
-  font-size=12 color="#687076"
+  font-size=12 color="light-dark(#687076, #6e7781)"
 
 style Primary
-  display="flex" flex-direction="row" height=36 border-radius=6 background-color="#11181c" color="#ffffff" font-size=14 font-weight=500 align-items="center" justify-content="center" gap=8 border-width=0 padding-left=14 padding-right=14
+  display="flex" flex-direction="row" height=36 border-radius=6 background-color="light-dark(#11181c, #ffffff)" color="light-dark(#ffffff, #0b0f14)" font-size=14 font-weight=500 align-items="center" justify-content="center" gap=8 border-width=0 padding-left=14 padding-right=14
 
 style PrimarySm
-  display="flex" flex-direction="row" height=32 border-radius=6 background-color="#11181c" color="#ffffff" font-size=13 font-weight=500 align-items="center" justify-content="center" gap=6 border-width=0 padding-left=14 padding-right=14
+  display="flex" flex-direction="row" height=32 border-radius=6 background-color="light-dark(#11181c, #ffffff)" color="light-dark(#ffffff, #0b0f14)" font-size=13 font-weight=500 align-items="center" justify-content="center" gap=6 border-width=0 padding-left=14 padding-right=14
 
 style Outline
-  display="flex" flex-direction="row" height=32 padding-left=12 padding-right=12 border-radius=6 border-style="solid" border-width=1 border-color="#e1e4e8" background-color="#ffffff" font-size=13 font-weight=500 color="#11181c" align-items="center" justify-content="center" gap=6
+  display="flex" flex-direction="row" height=32 padding-left=12 padding-right=12 border-radius=6 border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#ffffff, #0b0f14)" font-size=13 font-weight=500 color="light-dark(#11181c, #e6edf3)" align-items="center" justify-content="center" gap=6
 
 style OutlineSm
-  display="flex" flex-direction="row" height=26 padding-left=8 padding-right=8 border-radius=6 border-style="solid" border-width=1 border-color="#e1e4e8" background-color="#ffffff" font-size=12 font-weight=500 color="#11181c" align-items="center" justify-content="center" gap=5 flex-shrink=0
+  display="flex" flex-direction="row" height=26 padding-left=8 padding-right=8 border-radius=6 border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#ffffff, #0b0f14)" font-size=12 font-weight=500 color="light-dark(#11181c, #e6edf3)" align-items="center" justify-content="center" gap=5 flex-shrink=0
 
 style Ghost
-  display="flex" flex-direction="row" height=32 padding-left=12 padding-right=12 border-radius=6 font-size=13 font-weight=500 color="#596068" align-items="center" justify-content="center" background-color="transparent" border-width=0
+  display="flex" flex-direction="row" height=32 padding-left=12 padding-right=12 border-radius=6 font-size=13 font-weight=500 color="light-dark(#596068, #9aa4ae)" align-items="center" justify-content="center" background-color="transparent" border-width=0
 
 style Field
-  height=30 border-style="solid" border-width=1 border-color="#e1e4e8" border-radius=6 padding-left=10 padding-right=10 font-family="ui-monospace" font-size=12 color="#11181c" background-color="#ffffff" width="100%" box-sizing="border-box"
+  height=30 border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" border-radius=6 padding-left=10 padding-right=10 font-family="ui-monospace" font-size=12 color="light-dark(#11181c, #e6edf3)" background-color="light-dark(#ffffff, #0b0f14)" width="100%" box-sizing="border-box"
 
 style Card
-  border-style="solid" border-width=1 border-color="#e1e4e8" background-color="#f9fafb" border-radius=8 padding=12 gap=6
+  border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#f9fafb, #111418)" border-radius=8 padding=12 gap=6
 
 style Row
   display="flex" flex-direction="row" gap=12 padding-top=10 padding-right=16 padding-bottom=10 padding-left=16 align-items="flex-start" width="100%" box-sizing="border-box" background-color="transparent" border-width=0 text-align="left"
@@ -298,16 +303,16 @@ style Dot
   width=8 height=8 border-radius=9999 margin-top=6 flex-shrink=0
 
 style Error
-  font-size=12 color="rgb(207, 34, 46)"
+  font-size=12 color="light-dark(rgb(207, 34, 46), #ff7a7a)"
 
 style Tag
   font-size=10 font-weight=600 letter-spacing=0.6 padding-top=1 padding-bottom=1 padding-left=6 padding-right=6 border-radius=4
 
 style Tab
-  display="flex" flex-direction="row" height=28 padding-left=12 padding-right=12 border-radius=6 align-items="center" justify-content="center" font-size=12 font-weight=500 color="#596068" background-color="transparent" border-width=0
+  display="flex" flex-direction="row" height=28 padding-left=12 padding-right=12 border-radius=6 align-items="center" justify-content="center" font-size=12 font-weight=500 color="light-dark(#596068, #9aa4ae)" background-color="transparent" border-width=0
 
 style TabOn
-  display="flex" flex-direction="row" height=28 padding-left=12 padding-right=12 border-radius=6 align-items="center" justify-content="center" font-size=12 font-weight=500 color="#11181c" background-color="#eaecf0" border-width=0
+  display="flex" flex-direction="row" height=28 padding-left=12 padding-right=12 border-radius=6 align-items="center" justify-content="center" font-size=12 font-weight=500 color="light-dark(#11181c, #e6edf3)" background-color="light-dark(#eaecf0, #252932)" border-width=0
 
 component Revu
   state tick = 0
@@ -323,6 +328,7 @@ component Revu
   state selectedSkill = ""
   state selectedFinding = 0
   state modelDraft = ""
+  state secMs = 0
 
   // @ref exact2 LLP 1027.000.000 — the date is a host fact; now() is ms since launch.
   resource time = exactTime() as shape Time
@@ -339,6 +345,8 @@ component Revu
   resource inbox = reviewRequests(session.login, pollMs, time.epochAtZero, actions.stamp) as shape Inbox
   resource detail = prDetail(top(nav).params.owner, top(nav).params.name, top(nav).params.number, rulesStamp) as shape PrDetail
   resource job = reviewJob(jobId, tick, time.epochAtZero, toggledStamp, postedStamp) as shape Job
+  // The elapsed time ticks every second while a review runs (design 1d).
+  resource elapsedNow = elapsedSince(job.startedAt, job.finishedAt, secMs) as shape Elapsed
   // The local agent that runs reviews (LLP 0004): Settings ▸ Model.
   resource agents = agentSettings(agentStamp) as shape Agents
   resource skills = skillSettings(selectedSkill, rulesStamp, savedStamp) as shape SkillSettings
@@ -491,8 +499,14 @@ component Revu
         case none
           tick = tick
 
+  action second writes secMs
+    if reviewing
+      secMs = time.epochAtZero + now()
+
   task poll mount
     every(5000, clock)
+  task ticker mount
+    every(1000, second)
 
   view
     main testId="revu" navigationKey=`${top(nav).id}` navigationBack="goBack" class=Surface display="flex" flex-direction="column" overflow="hidden"
@@ -501,31 +515,31 @@ component Revu
       // ---- 1a Onboarding — connect GitHub ------------------------------
       when not signedIn
         column padding-top=32 padding-right=28 padding-bottom=24 padding-left=28 gap=24 testId="onboarding"
-          column width=48 height=48 border-radius=12 background-color="#11181c" align-items="center" justify-content="center"
-            Icon(name="git-pull-request", size=24, color="#ffffff")
+          column width=48 height=48 border-radius=12 background-color="light-dark(#11181c, #ffffff)" align-items="center" justify-content="center"
+            Icon(name="git-pull-request", size=24, color="light-dark(#ffffff, #0b0f14)")
           column gap=8
             text "Connect your GitHub account" font-size=20 font-weight=600 letter-spacing=-0.25 testId="title"
-            text "revu watches for review requests addressed to you and your teams, and runs AI reviews using the skill file mapped to each repository." font-size=14 line-height=1.5 color="#596068"
+            text "revu watches for review requests addressed to you and your teams, and runs AI reviews using the skill file mapped to each repository." font-size=14 line-height=1.5 color="light-dark(#596068, #9aa4ae)"
           column gap=12
             row gap=10 align-items="center"
-              column width=20 height=20 border-radius=9999 background-color="#11181c" align-items="center" justify-content="center"
-                text "1" font-size=11 font-weight=600 color="#ffffff"
+              column width=20 height=20 border-radius=9999 background-color="light-dark(#11181c, #ffffff)" align-items="center" justify-content="center"
+                text "1" font-size=11 font-weight=600 color="light-dark(#ffffff, #0b0f14)"
               text "Sign in with GitHub" font-size=13 font-weight=500
             row gap=10 align-items="center"
-              column width=20 height=20 border-radius=9999 border-style="solid" border-width=1 border-color="#d7dbdf" align-items="center" justify-content="center"
-                text "2" font-size=11 font-weight=600 color="#596068"
-              text "Choose teams to watch" font-size=13 color="#596068"
+              column width=20 height=20 border-radius=9999 border-style="solid" border-width=1 border-color="light-dark(#d7dbdf, #30363d)" align-items="center" justify-content="center"
+                text "2" font-size=11 font-weight=600 color="light-dark(#596068, #9aa4ae)"
+              text "Choose teams to watch" font-size=13 color="light-dark(#596068, #9aa4ae)"
             row gap=10 align-items="center"
-              column width=20 height=20 border-radius=9999 border-style="solid" border-width=1 border-color="#d7dbdf" align-items="center" justify-content="center"
-                text "3" font-size=11 font-weight=600 color="#596068"
-              text "Add a default review skill" font-size=13 color="#596068"
+              column width=20 height=20 border-radius=9999 border-style="solid" border-width=1 border-color="light-dark(#d7dbdf, #30363d)" align-items="center" justify-content="center"
+                text "3" font-size=11 font-weight=600 color="light-dark(#596068, #9aa4ae)"
+              text "Add a default review skill" font-size=13 color="light-dark(#596068, #9aa4ae)"
           column gap=12
             match device
               case some(d)
                 column class=Card testId="device-code"
                   text "Enter this code at github.com/login/device" class=Tertiary
                   text d.userCode font-family="ui-monospace" font-size=18 font-weight=600 letter-spacing=2 testId="user-code"
-                  button press=openLink(d.verificationUri) class=Ghost height=24 padding-left=0 padding-right=0 align-self="flex-start" color="#0072DE" font-size=12 testId="verification-link"
+                  button press=openLink(d.verificationUri) class=Ghost height=24 padding-left=0 padding-right=0 align-self="flex-start" color="light-dark(#0072DE, #4aa8ff)" font-size=12 testId="verification-link"
                     text "Open github.com/login/device ↗"
                   when d.error != ""
                     text d.error class=Error testId="device-error"
@@ -541,13 +555,13 @@ component Revu
                   text "Cancel"
               case none
                 button press=startSignIn class=Primary testId="sign-in"
-                  Icon(name="log-in", size=16, color="#ffffff")
+                  Icon(name="log-in", size=16, color="light-dark(#ffffff, #0b0f14)")
                   text "Continue with GitHub"
                 column class=Card
                   text "You get a one-time code to enter at github.com/login/device." class=Tertiary
                 when session.error != ""
                   text session.error class=Error testId="error"
-          text "Requests the notifications, repo and read:user scopes. The token is stored in the macOS Keychain." font-size=12 line-height=1.5 color="#687076"
+          text "Requests the notifications, repo and read:user scopes. The token is stored in the macOS Keychain." font-size=12 line-height=1.5 color="light-dark(#687076, #6e7781)"
 
       // ---- 1b Popover — pending requests --------------------------------
       when signedIn and screen == "inbox"
@@ -556,22 +570,22 @@ component Revu
             text "Review requests" class=HeaderTitle testId="title"
             row gap=4
               button press=refreshNow class=IconBtn testId="refresh" aria-label="Refresh"
-                Icon(name="refresh", size=15, color=(pending(inbox) ? "#c9d1d9" : "#596068"))
+                Icon(name="refresh", size=15, color=(pending(inbox) ? "light-dark(#c9d1d9, #484f58)" : "light-dark(#596068, #9aa4ae)"))
               button press=openSettings class=IconBtn testId="open-settings" aria-label="Settings"
-                Icon(name="settings", size=15, color="#596068")
+                Icon(name="settings", size=15, color="light-dark(#596068, #9aa4ae)")
           row padding-left=16 padding-right=16 padding-bottom=10 gap=4
             button press=setFilter("all") class=(filter == "all" ? ChipOn : Chip) testId="filter-all"
               text "All"
-              text `${inbox.total}` color="#687076"
+              text `${inbox.total}` color="light-dark(#687076, #6e7781)"
             button press=setFilter("mine") class=(filter == "mine" ? ChipOn : Chip) testId="filter-mine"
               text "You"
-              text `${inbox.mineCount}` color="#687076"
+              text `${inbox.mineCount}` color="light-dark(#687076, #6e7781)"
             button press=setFilter("teams") class=(filter == "teams" ? ChipOn : Chip) testId="filter-teams"
               text "Teams"
-              text `${inbox.teamCount}` color="#687076"
+              text `${inbox.teamCount}` color="light-dark(#687076, #6e7781)"
           box class=Divider
           when notifications.available and notifications.permission != "granted"
-            row padding-left=16 padding-right=16 padding-top=8 padding-bottom=8 gap=8 align-items="center" background-color="#f9fafb"
+            row padding-left=16 padding-right=16 padding-top=8 padding-bottom=8 gap=8 align-items="center" background-color="light-dark(#f9fafb, #111418)"
               text "Get a banner when a review is requested." class=Secondary flex=1
               button press=askPermission class=OutlineSm testId="ask-permission"
                 text "Allow notifications"
@@ -597,7 +611,7 @@ component Revu
           box class=Divider
           row padding-top=10 padding-right=16 padding-bottom=10 padding-left=16 justify-content="space-between" align-items="center"
             text (inbox.ready ? `Synced ${inbox.polledAt} · ${session.login}` : "Syncing…") class=Tertiary testId="synced"
-            button press=openLink("https://github.com/pulls/review-requested") class=Ghost height=24 padding-left=0 padding-right=0 color="#687076" font-size=12 testId="open-github"
+            button press=openLink("https://github.com/pulls/review-requested") class=Ghost height=24 padding-left=0 padding-right=0 color="light-dark(#687076, #6e7781)" font-size=12 testId="open-github"
               text "Open on GitHub ↗"
 
       // ---- 1c Popover — PR quick look -----------------------------------
@@ -605,9 +619,9 @@ component Revu
         column flex=1 min-height=0 testId="pr-screen"
           row padding-top=12 padding-right=12 padding-bottom=8 padding-left=12 gap=6 align-items="center"
             button press=goBack class=IconBtn testId="back" aria-label="Back"
-              Icon(name="chevron-left", size=16, color="#596068")
+              Icon(name="chevron-left", size=16, color="light-dark(#596068, #9aa4ae)")
             text `${prOwner}/${prName} #${prNumber}` class=MonoLabel flex=1
-            button press=openLink(detail.url) class=IconBtn color="#596068" font-size=13 testId="open-on-github"
+            button press=openLink(detail.url) class=IconBtn color="light-dark(#596068, #9aa4ae)" font-size=13 testId="open-on-github"
               text "↗"
           scroll flex=1 min-height=0
             column
@@ -615,7 +629,7 @@ component Revu
                 text (detail.ready ? detail.title : "Loading…") font-size=16 font-weight=600 line-height=1.35 letter-spacing=-0.15 testId="pr-title"
                 when detail.ready
                   row gap=8 align-items="center"
-                    box width=18 height=18 border-radius=9999 background-color="#d7dbdf"
+                    box width=18 height=18 border-radius=9999 background-color="light-dark(#d7dbdf, #30363d)"
                     text `${detail.author} wants to merge ${detail.headRef} into ${detail.baseRef}` class=Secondary line-clamp=1
                 when detail.error != ""
                   text detail.error class=Error testId="pr-error"
@@ -624,18 +638,18 @@ component Revu
                 row gap=16 align-items="center"
                   text "Checks" class=Tertiary width=56
                   row gap=6 align-items="center"
-                    box width=8 height=8 border-radius=9999 background-color=(detail.ci == "pass" ? "rgb(9, 141, 72)" : detail.ci == "fail" ? "rgb(207, 34, 46)" : detail.ci == "run" ? "rgb(255, 138, 76)" : "#c9d1d9")
+                    box width=8 height=8 border-radius=9999 background-color=(detail.ci == "pass" ? "light-dark(rgb(9, 141, 72), #4ade80)" : detail.ci == "fail" ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : detail.ci == "run" ? "rgb(255, 138, 76)" : "light-dark(#c9d1d9, #484f58)")
                     text detail.ciLabel font-size=12 testId="pr-checks"
                 row gap=16 align-items="center"
                   text "Changes" class=Tertiary width=56
                   row gap=4 class=Mono
                     text `${detail.files} files ·`
-                    text `+${detail.additions}` color="rgb(9, 141, 72)"
-                    text `−${detail.deletions}` color="rgb(207, 34, 46)"
+                    text `+${detail.additions}` color="light-dark(rgb(9, 141, 72), #4ade80)"
+                    text `−${detail.deletions}` color="light-dark(rgb(207, 34, 46), #ff7a7a)"
                 row gap=16 align-items="center"
                   text "Skill" class=Tertiary width=56
                   row gap=6 align-items="center"
-                    Icon(name="file-text", size=13, color="#687076")
+                    Icon(name="file-text", size=13, color="light-dark(#687076, #6e7781)")
                     text `${detail.skill}.md` class=Mono
                     text `· matched ${detail.skillRule}` class=Tertiary testId="pr-skill"
               box class=Divider
@@ -643,10 +657,10 @@ component Revu
                 text "Files" class=SectionLabel
                 each f in detail.changed key=f.path
                   row justify-content="space-between" gap=12 class=Mono line-height=1.6
-                    text f.path color="#596068" line-clamp=1 flex=1 min-width=0
+                    text f.path color="light-dark(#596068, #9aa4ae)" line-clamp=1 flex=1 min-width=0
                     row gap=4 flex-shrink=0
-                      text `+${f.additions}` color="rgb(9, 141, 72)"
-                      text `−${f.deletions}` color="rgb(207, 34, 46)"
+                      text `+${f.additions}` color="light-dark(rgb(9, 141, 72), #4ade80)"
+                      text `−${f.deletions}` color="light-dark(rgb(207, 34, 46), #ff7a7a)"
                 when detail.ready and detail.files > length(detail.changed)
                   text `… and ${detail.files - length(detail.changed)} more` class=Tertiary
               box class=Divider
@@ -655,11 +669,11 @@ component Revu
                 when detail.body == ""
                   text "(no description)" class=Secondary testId="pr-body"
                 else
-                  text detail.body markup="markdown" width="100%" font-size=13 line-height="20px" color="#596068" testId="pr-body"
+                  text detail.body markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#596068, #9aa4ae)" testId="pr-body"
           box class=Divider
           row padding=12 padding-left=16 padding-right=16 gap=8
             button press=runReview class=PrimarySm flex=1 disabled=(not detail.ready or not sidecar.reachable) testId="run-review"
-              Icon(name="sparkles", size=14, color="#ffffff")
+              Icon(name="sparkles", size=14, color="light-dark(#ffffff, #0b0f14)")
               text (sidecar.reachable ? "Run AI review" : "Sidecar offline")
             button press=openLink(`${detail.url}/files`) class=Outline testId="open-diff"
               text "Open diff"
@@ -669,12 +683,12 @@ component Revu
         column flex=1 min-height=0 testId="review-screen"
           row padding-top=12 padding-right=12 padding-bottom=8 padding-left=12 gap=6 align-items="center"
             button press=goBack class=IconBtn testId="back" aria-label="Back"
-              Icon(name="chevron-left", size=16, color="#596068")
+              Icon(name="chevron-left", size=16, color="light-dark(#596068, #9aa4ae)")
             text `${prOwner}/${prName} #${prNumber}` class=MonoLabel flex=1
             when job.ready
               row gap=6 align-items="center"
-                Icon(name="file-text", size=13, color="#687076")
-                text `${job.skill}.md · ${job.elapsed}` class=Tertiary
+                Icon(name="file-text", size=13, color="light-dark(#687076, #6e7781)")
+                text `${job.skill}.md · ${elapsedNow.text}` class=Tertiary
           when not job.ready
             column padding=16 gap=6
               text "Starting the review…" font-size=16 font-weight=600
@@ -690,8 +704,8 @@ component Revu
                 text `Reviewing with ${job.skill}.md` font-size=16 font-weight=600 letter-spacing=-0.15 testId="review-title"
                 text `${job.agent == "codex" ? "Codex CLI" : "Claude Code"} reads the pull request through gh; nothing is checked out. You can go back to the list.` class=Secondary
               row padding-left=16 padding-right=16 padding-bottom=16 width="100%" box-sizing="border-box"
-                row flex=1 height=4 border-radius=2 background-color="#eaecf0" overflow="hidden" testId="progress-track"
-                  box height=4 border-radius=2 background-color="#11181c" width=`${job.progress}%` testId="progress-fill"
+                row flex=1 height=4 border-radius=2 background-color="light-dark(#eaecf0, #252932)" overflow="hidden" testId="progress-track"
+                  box height=4 border-radius=2 background-color="light-dark(#11181c, #e6edf3)" width=`${job.progress}%` testId="progress-fill"
               box class=Divider
               column padding=16 padding-top=12 padding-bottom=12 gap=10
                 Step(label="Queued with the sidecar", state=(job.step > 0 ? "done" : "active"), meta="")
@@ -699,14 +713,14 @@ component Revu
                 Step(label=`Loaded skill ${job.skill}.md`, state=(job.step > 2 ? "done" : job.step == 2 ? "active" : "pending"), meta="")
                 Step(label="Reading the diff and context via gh", state=(job.step > 3 ? "done" : job.step == 3 ? "active" : "pending"), meta=(job.step == 3 ? `${job.calls} calls` : ""))
                 Step(label="Drafting comments", state=(job.step == 4 ? "active" : "pending"), meta="")
-              column background-color="#11181c" padding=12 padding-left=16 padding-right=16 gap=2 min-height=64
+              column background-color="light-dark(#11181c, #0f1318)" padding=12 padding-left=16 padding-right=16 gap=2 min-height=64
                 each line in job.log key=line
-                  text line font-family="ui-monospace" font-size=11 line-height=1.7 color="#c9d1d9" line-clamp=1
+                  text line font-family="ui-monospace" font-size=11 line-height=1.7 color="light-dark(#c9d1d9, #9aa4ae)" line-clamp=1
                 when length(job.log) == 0
-                  text "waiting for output…" font-family="ui-monospace" font-size=11 line-height=1.7 color="#687076"
+                  text "waiting for output…" font-family="ui-monospace" font-size=11 line-height=1.7 color="light-dark(#687076, #6e7781)"
               box class=Divider
               row padding=12 padding-left=16 padding-right=16 justify-content="space-between" align-items="center"
-                text `Elapsed ${job.elapsed}` class=Tertiary testId="elapsed"
+                text `Elapsed ${elapsedNow.text}` class=Tertiary testId="elapsed"
                 button press=cancelReview class=Outline height=28 testId="cancel-review"
                   text "Cancel"
           when job.ready and job.status == "failed"
@@ -725,27 +739,27 @@ component Revu
                     when job.summary == ""
                       text "The agent returned no summary." class=Secondary testId="summary"
                     else
-                      text job.summary markup="markdown" width="100%" font-size=13 line-height="20px" color="#596068" testId="summary"
+                      text job.summary markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#596068, #9aa4ae)" testId="summary"
                   box class=Divider
                   row padding=16 padding-top=12 padding-bottom=6 justify-content="space-between" align-items="center"
                     text "Findings" class=SectionLabel
                     text `${job.chosenCount} of ${length(job.comments)} selected` class=Tertiary testId="chosen-count"
                   each c in job.comments key=`${c.index}`
-                    row class=Row gap=10 background-color=(selectedFinding == c.index ? "#f0f1f2" : "transparent")
-                      button press=toggleComment(c.index) width=16 height=16 border-radius=4 flex-shrink=0 margin-top=1 align-items="center" justify-content="center" border-style="solid" border-width=1 border-color=(c.chosen ? "#11181c" : "#d7dbdf") background-color=(c.chosen ? "#11181c" : "#ffffff") padding=0 disabled=job.posted testId=`choose-${c.index}` aria-label=`Include comment ${c.index + 1}`
+                    row class=Row gap=10 background-color=(selectedFinding == c.index ? "light-dark(#f0f1f2, #1d2128)" : "transparent")
+                      button press=toggleComment(c.index) width=16 height=16 border-radius=4 flex-shrink=0 margin-top=1 align-items="center" justify-content="center" border-style="solid" border-width=1 border-color=(c.chosen ? "light-dark(#11181c, #e6edf3)" : "light-dark(#d7dbdf, #30363d)") background-color=(c.chosen ? "light-dark(#11181c, #e6edf3)" : "light-dark(#ffffff, #0b0f14)") padding=0 disabled=job.posted testId=`choose-${c.index}` aria-label=`Include comment ${c.index + 1}`
                         when c.chosen
-                          text "✓" color="#ffffff" font-size=10 font-weight=700
+                          text "✓" color="#fff" font-size=10 font-weight=700
                       button press=selectFinding(c.index) flex=1 min-width=0 gap=4 background-color="transparent" border-width=0 padding=0 text-align="left" display="flex" flex-direction="column" align-items="stretch"
                         row gap=6 align-items="center"
-                          text c.severity class=Tag text-transform="uppercase" background-color=(c.severity == "critical" ? "rgb(255, 220, 220)" : c.severity == "design" ? "rgb(255, 244, 194)" : c.severity == "suggestion" ? "rgb(219, 231, 255)" : "#f5f5f7") color=(c.severity == "critical" ? "rgb(207, 34, 46)" : c.severity == "design" ? "#8a6d00" : c.severity == "suggestion" ? "#0072DE" : "#596068")
-                          text `${c.path}:${c.line}` font-family="ui-monospace" font-size=11 color="#687076" line-clamp=1 flex=1 min-width=0
+                          text c.severity class=Tag text-transform="uppercase" background-color=(c.severity == "critical" ? "light-dark(rgb(255, 220, 220), rgba(207, 34, 46, 0.18))" : c.severity == "design" ? "light-dark(rgb(255, 244, 194), rgba(255, 210, 44, 0.16))" : c.severity == "suggestion" ? "light-dark(rgb(219, 231, 255), rgba(33, 136, 255, 0.18))" : "light-dark(#f5f5f7, #161a20)") color=(c.severity == "critical" ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : c.severity == "design" ? "light-dark(#8a6d00, #ffd36b)" : c.severity == "suggestion" ? "light-dark(#0072DE, #4aa8ff)" : "light-dark(#596068, #9aa4ae)")
+                          text `${c.path}:${c.line}` font-family="ui-monospace" font-size=11 color="light-dark(#687076, #6e7781)" line-clamp=1 flex=1 min-width=0
                         text c.title font-size=13 font-weight=500 line-height=1.35
                         when selectedFinding == c.index and c.body != c.title
-                          text c.body markup="markdown" width="100%" font-size=13 line-height="20px" color="#596068" padding-top=4
+                          text c.body markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#596068, #9aa4ae)" padding-top=4
                   when length(job.comments) == 0
                     text (job.hasResult ? "No comments: the agent found nothing to say." : "The agent left no findings JSON; its output is above.") class=Tertiary padding-left=16 padding-bottom=12
               box class=Divider
-              column padding=12 padding-left=16 padding-right=16 gap=8 background-color="#f9fafb"
+              column padding=12 padding-left=16 padding-right=16 gap=8 background-color="light-dark(#f9fafb, #111418)"
                 row gap=8 align-items="center"
                   text (job.verdict == "APPROVE" ? "Approve" : job.verdict == "REQUEST_CHANGES" ? "Request changes" : "Comment") class=Outline height=28 testId="verdict"
                   text (job.posted ? `Staged ${job.postedCount} as a pending review` : "Posted as a pending review from you") class=Tertiary flex=1 line-clamp=2
@@ -768,10 +782,10 @@ component Revu
       // ---- 1f Settings — skills mapped by repository ---------------------
       when signedIn and screen == "settings"
         column flex=1 min-height=0 testId="settings-screen"
-          row height=44 padding-right=12 padding-left=(wide ? 80 : 12) gap=6 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="#e1e4e8" background-color="#f9fafb" flex-shrink=0
+          row height=44 padding-right=12 padding-left=(wide ? 80 : 12) gap=6 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#f9fafb, #111418)" flex-shrink=0
             when not wide
               button press=goBack class=IconBtn testId="back" aria-label="Back"
-                Icon(name="chevron-left", size=16, color="#596068")
+                Icon(name="chevron-left", size=16, color="light-dark(#596068, #9aa4ae)")
             row flex=1 justify-content="center" gap=4 padding-right=(wide ? 52 : 0)
               button press=setSettingsTab("general") class=(settingsTab == "general" ? TabOn : Tab) testId="tab-general"
                 text "General"
@@ -810,19 +824,19 @@ component Revu
             when settingsTab == "model"
               column padding=16 gap=12 max-width=560
                 text "Local agent" class=SectionLabel
-                text "Reviews run on the agent CLI you already use and are signed in to. Nothing is checked out: the agent reads the pull request through gh." font-size=12 line-height=1.5 color="#687076"
-                button press=chooseAgent("claude") class=Card display="flex" flex-direction="row" gap=12 align-items="center" border-color=(agents.current == "claude" ? "#11181c" : "#e1e4e8") text-align="left" testId="agent-claude"
-                  box width=16 height=16 border-radius=9999 border-style="solid" border-width=(agents.current == "claude" ? 5 : 1) border-color=(agents.current == "claude" ? "#11181c" : "#d7dbdf") background-color="#ffffff" flex-shrink=0
+                text "Reviews run on the agent CLI you already use and are signed in to. Nothing is checked out: the agent reads the pull request through gh." font-size=12 line-height=1.5 color="light-dark(#687076, #6e7781)"
+                button press=chooseAgent("claude") class=Card display="flex" flex-direction="row" gap=12 align-items="center" border-color=(agents.current == "claude" ? "light-dark(#11181c, #e6edf3)" : "light-dark(#e1e4e8, #1f242c)") text-align="left" testId="agent-claude"
+                  box width=16 height=16 border-radius=9999 border-style="solid" border-width=(agents.current == "claude" ? 5 : 1) border-color=(agents.current == "claude" ? "light-dark(#11181c, #e6edf3)" : "light-dark(#d7dbdf, #30363d)") background-color="light-dark(#ffffff, #0b0f14)" flex-shrink=0
                   column flex=1 gap=2
                     text "Claude Code" font-size=13 font-weight=500
                     text (agents.claudeAvailable ? `claude -p · ${agents.claudePath}` : "not installed — npm i -g @anthropic-ai/claude-code, then claude login") class=Tertiary line-clamp=1
-                button press=chooseAgent("codex") class=Card display="flex" flex-direction="row" gap=12 align-items="center" border-color=(agents.current == "codex" ? "#11181c" : "#e1e4e8") text-align="left" testId="agent-codex"
-                  box width=16 height=16 border-radius=9999 border-style="solid" border-width=(agents.current == "codex" ? 5 : 1) border-color=(agents.current == "codex" ? "#11181c" : "#d7dbdf") background-color="#ffffff" flex-shrink=0
+                button press=chooseAgent("codex") class=Card display="flex" flex-direction="row" gap=12 align-items="center" border-color=(agents.current == "codex" ? "light-dark(#11181c, #e6edf3)" : "light-dark(#e1e4e8, #1f242c)") text-align="left" testId="agent-codex"
+                  box width=16 height=16 border-radius=9999 border-style="solid" border-width=(agents.current == "codex" ? 5 : 1) border-color=(agents.current == "codex" ? "light-dark(#11181c, #e6edf3)" : "light-dark(#d7dbdf, #30363d)") background-color="light-dark(#ffffff, #0b0f14)" flex-shrink=0
                   column flex=1 gap=2
                     text "Codex CLI" font-size=13 font-weight=500
                     text (agents.codexAvailable ? `codex exec · ${agents.codexPath}` : "not installed — npm i -g @openai/codex, then codex login") class=Tertiary line-clamp=1
                 text "Model" class=SectionLabel padding-top=8
-                text "The alias or name the CLI accepts (Claude: opus, sonnet, or a full name; Codex: as `codex -m`). Empty uses the CLI's own default." font-size=12 line-height=1.5 color="#687076"
+                text "The alias or name the CLI accepts (Claude: opus, sonnet, or a full name; Codex: as `codex -m`). Empty uses the CLI's own default." font-size=12 line-height=1.5 color="light-dark(#687076, #6e7781)"
                 row gap=6 align-items="center"
                   input value=(modelDraft == "" ? agents.model : modelDraft) input=setModelDraft autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="opus" class=Field flex=1 testId="model"
                   button press=saveModel class=OutlineSm height=30 disabled=(modelDraft == "" or modelDraft == agents.model) testId="save-model"
@@ -831,23 +845,23 @@ component Revu
                   text "The sidecar is offline; availability is unknown." class=Error
             when settingsTab == "skills"
               row flex-wrap="wrap" align-items="flex-start" min-height="100%" width="100%" box-sizing="border-box"
-                column width=(wide ? 300 : "100%") flex-shrink=0 border-right-style="solid" border-right-width=(wide ? 1 : 0) border-color="#e1e4e8" min-height=(wide ? "100%" : 0) testId="rules-pane"
+                column width=(wide ? 300 : "100%") flex-shrink=0 border-right-style="solid" border-right-width=(wide ? 1 : 0) border-color="light-dark(#e1e4e8, #1f242c)" min-height=(wide ? "100%" : 0) testId="rules-pane"
                   column padding=16 padding-bottom=8 gap=8
                     row justify-content="space-between" align-items="center"
                       text "Repository rules" class=SectionLabel
-                    text "First match wins. Patterns support *." font-size=12 line-height=1.5 color="#687076"
+                    text "First match wins. Patterns support *." font-size=12 line-height=1.5 color="light-dark(#687076, #6e7781)"
                     each rule in skills.rules key=rule.pattern
-                      row padding-top=8 padding-bottom=8 padding-left=8 padding-right=8 border-radius=6 gap=10 align-items="center" background-color=(rule.skill == skills.selected ? "#eaecf0" : "transparent")
+                      row padding-top=8 padding-bottom=8 padding-left=8 padding-right=8 border-radius=6 gap=10 align-items="center" background-color=(rule.skill == skills.selected ? "light-dark(#eaecf0, #252932)" : "transparent")
                         column flex=1 min-width=0 gap=2
                           text rule.pattern font-family="ui-monospace" font-size=12 font-weight=500
                           text `→ ${rule.skill}.md` class=Tertiary
                         button press=removeRule(rule.pattern) class=IconBtn width=24 height=24 aria-label=`Remove rule ${rule.pattern}`
-                          Icon(name="x", size=13, color="#687076")
+                          Icon(name="x", size=13, color="light-dark(#687076, #6e7781)")
                     row gap=6 align-items="center"
                       input value=newPattern input=setNewPattern autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="owner/repo*" class=Field flex=1 testId="new-pattern"
                       input value=newSkill input=setNewSkill autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="skill" class=Field flex=1 testId="new-skill"
                       button press=addRule class=OutlineSm height=30 disabled=(newPattern == "" or newSkill == "") testId="add-rule"
-                        Icon(name="plus", size=13, color="#11181c")
+                        Icon(name="plus", size=13, color="light-dark(#11181c, #e6edf3)")
                     match rules
                       case some(r)
                         when r.error != ""
@@ -865,25 +879,25 @@ component Revu
                         text "via"
                         text testMatch.pattern class=Mono
                 column flex=1 min-width=300 max-width="100%" overflow="hidden" testId="skill-pane"
-                  row padding-top=12 padding-bottom=12 padding-left=20 padding-right=20 gap=10 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="#eaecf0"
-                    Icon(name="file-text", size=15, color="#687076")
+                  row padding-top=12 padding-bottom=12 padding-left=20 padding-right=20 gap=10 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="light-dark(#eaecf0, #252932)"
+                    Icon(name="file-text", size=15, color="light-dark(#687076, #6e7781)")
                     row gap=6 flex-wrap="wrap"
                       each s in skills.skills key=s.name
                         button press=selectSkill(s.name) class=(s.name == skills.selected ? ChipOn : Chip) testId=`skill-${s.name}`
                           text `${s.name}.md`
                     when skillEditing
-                      text "EDITED" class=Tag background-color="rgb(255, 244, 194)" color="#8a6d00"
+                      text "EDITED" class=Tag background-color="light-dark(rgb(255, 244, 194), rgba(255, 210, 44, 0.16))" color="light-dark(#8a6d00, #ffd36b)"
                     text (skills.error != "" ? skills.error : skills.reachable ? `Used by ${skills.usedBy}` : "sidecar offline") class=(skills.reachable ? Tertiary : Error) flex=1 text-align="right" line-clamp=1
                   when skills.selected != ""
                     when skillEditing
-                      textarea value=skillDraft input=changeSkill font-family="ui-monospace" font-size=12 line-height=1.75 height=(wide ? 480 : 320) width="100%" box-sizing="border-box" padding=12 padding-left=14 border-width=0 background-color="#fbfcfd" color="#11181c" testId="skill-editor"
+                      textarea value=skillDraft input=changeSkill font-family="ui-monospace" font-size=12 line-height=1.75 height=(wide ? 480 : 320) width="100%" box-sizing="border-box" padding=12 padding-left=14 border-width=0 background-color="light-dark(#fbfcfd, #0f1318)" color="light-dark(#11181c, #e6edf3)" testId="skill-editor"
                     else
-                      column background-color="#fbfcfd" padding-top=12 padding-bottom=12 overflow="hidden" min-height=(wide ? 480 : 0)
+                      column background-color="light-dark(#fbfcfd, #0f1318)" padding-top=12 padding-bottom=12 overflow="hidden" min-height=(wide ? 480 : 0)
                         each l in skills.lines key=l.n
                           row gap=0
-                            text `${l.n}` font-family="ui-monospace" font-size=12 line-height=1.75 color="#c9d1d9" width=44 text-align="right" padding-right=12 flex-shrink=0 border-right-style="solid" border-right-width=1 border-color="#eaecf0"
-                            text l.text font-family="ui-monospace" font-size=12 line-height=1.75 color=(l.heading ? "#0072DE" : "#11181c") font-weight=(l.heading ? 600 : 400) white-space="pre" line-clamp=1 flex=1 min-width=0 padding-left=14
-                    row gap=10 align-items="center" padding=12 padding-left=20 padding-right=20 border-top-style="solid" border-top-width=1 border-color="#e1e4e8" background-color="#f9fafb"
+                            text `${l.n}` font-family="ui-monospace" font-size=12 line-height=1.75 color="light-dark(#c9d1d9, #484f58)" width=44 text-align="right" padding-right=12 flex-shrink=0 border-right-style="solid" border-right-width=1 border-color="light-dark(#eaecf0, #252932)"
+                            text l.text font-family="ui-monospace" font-size=12 line-height=1.75 color=(l.heading ? "light-dark(#0072DE, #4aa8ff)" : "light-dark(#11181c, #e6edf3)") font-weight=(l.heading ? 600 : 400) white-space="pre" line-clamp=1 flex=1 min-width=0 padding-left=14
+                    row gap=10 align-items="center" padding=12 padding-left=20 padding-right=20 border-top-style="solid" border-top-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#f9fafb, #111418)"
                       text skills.path class=Tertiary flex=1 line-clamp=1
                       when skillEditing
                         button press=revertSkill class=Ghost height=30 testId="revert-skill"
@@ -912,15 +926,15 @@ component Step
     row gap=10 align-items="center" font-size=13
       column width=16 height=16 align-items="center" justify-content="center" flex-shrink=0
         when state == "done"
-          column width=14 height=14 border-radius=9999 background-color="rgb(9, 141, 72)" align-items="center" justify-content="center"
-            text "✓" color="#ffffff" font-size=9 font-weight=700 line-height="9px"
+          column width=14 height=14 border-radius=9999 background-color="light-dark(rgb(9, 141, 72), #4ade80)" align-items="center" justify-content="center"
+            text "✓" color="#fff" font-size=9 font-weight=700 line-height="9px"
         when state == "active"
-          box width=14 height=14 border-radius=9999 border-style="solid" border-width=2 border-color="#d7dbdf" border-top-color="#11181c" box-sizing="border-box" animation="spin 900ms linear infinite"
+          box width=14 height=14 border-radius=9999 border-style="solid" border-width=2 border-color="light-dark(#d7dbdf, #30363d)" border-top-color="light-dark(#11181c, #e6edf3)" box-sizing="border-box" animation="spin 900ms linear infinite"
         when state == "pending"
-          box width=12 height=12 border-radius=9999 border-style="solid" border-width=1.5 border-color="#d7dbdf" box-sizing="border-box"
-      text label flex=1 color=(state == "done" ? "#596068" : state == "active" ? "#11181c" : "#687076")
+          box width=12 height=12 border-radius=9999 border-style="solid" border-width=1.5 border-color="light-dark(#d7dbdf, #30363d)" box-sizing="border-box"
+      text label flex=1 color=(state == "done" ? "light-dark(#596068, #9aa4ae)" : state == "active" ? "light-dark(#11181c, #e6edf3)" : "light-dark(#687076, #6e7781)")
       when meta != ""
-        text meta font-family="ui-monospace" font-size=12 color="#687076"
+        text meta font-family="ui-monospace" font-size=12 color="light-dark(#687076, #6e7781)"
 
 // Lucide icons (stroke 2, round caps), as in the design.
 component Icon
@@ -977,11 +991,11 @@ component ReviewRow
     press: action
   view
     button press=press class=Row testId=`pr-${r.id}`
-      box class=Dot background-color=(r.ci == "pass" ? "rgb(9, 141, 72)" : r.ci == "fail" ? "rgb(207, 34, 46)" : r.ci == "run" ? "rgb(255, 138, 76)" : "#c9d1d9")
+      box class=Dot background-color=(r.ci == "pass" ? "light-dark(rgb(9, 141, 72), #4ade80)" : r.ci == "fail" ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : r.ci == "run" ? "rgb(255, 138, 76)" : "light-dark(#c9d1d9, #484f58)")
       column flex=1 min-width=0 gap=3
         text (r.team == "" ? `${r.repo} #${r.number}` : `${r.repo} #${r.number} · ${r.team}`) class=MonoLabel
         text r.title font-size=13 font-weight=(r.unread ? 600 : 500) line-height=1.35 line-clamp=2
         text (r.unread ? `${r.ciLabel} · new` : r.ciLabel) class=Secondary
       row class=OutlineSm
-        Icon(name="sparkles", size=13, color="#11181c")
+        Icon(name="sparkles", size=13, color="light-dark(#11181c, #e6edf3)")
         text "Review"
