@@ -114,6 +114,7 @@ shape Job
   progress: number
   elapsed: string
   log: list<string>
+  calls: number
   summary: string
   verdict: string
   hasResult: bool
@@ -227,6 +228,11 @@ shape Opened
 // fg-disabled #c9d1d9 · border-default #e1e4e8 · border-subtle #eaecf0 ·
 // border-strong #d7dbdf · bg-subtle #f9fafb · bg-element #f5f5f7 ·
 // bg-hover #f0f1f2 · bg-active #eaecf0 · gray-900 #11181c · gray-400 #c9d1d9
+
+// Design 1d: a spinner on the running step, a green check on a done one.
+keyframes spin
+  from rotate=0
+  to rotate=360
 
 style Surface
   width="100%" height="100%" box-sizing="border-box" background-color="#ffffff" color="#11181c" font-family="system-ui" font-size=13
@@ -683,26 +689,16 @@ component Revu
               column padding-left=16 padding-right=16 padding-bottom=16 gap=6
                 text `Reviewing with ${job.skill}.md` font-size=16 font-weight=600 letter-spacing=-0.15 testId="review-title"
                 text `${job.agent == "codex" ? "Codex CLI" : "Claude Code"} reads the pull request through gh; nothing is checked out. You can go back to the list.` class=Secondary
-              column padding-left=16 padding-right=16 padding-bottom=16
-                box height=4 border-radius=9999 background-color="#eaecf0" overflow="hidden" width="100%"
-                  box height=4 border-radius=9999 background-color="#11181c" width=`${job.progress}%`
+              row padding-left=16 padding-right=16 padding-bottom=16 width="100%" box-sizing="border-box"
+                row flex=1 height=4 border-radius=2 background-color="#eaecf0" overflow="hidden" testId="progress-track"
+                  box height=4 border-radius=2 background-color="#11181c" width=`${job.progress}%` testId="progress-fill"
               box class=Divider
               column padding=16 padding-top=12 padding-bottom=12 gap=10
-                row gap=10 align-items="center"
-                  box width=14 height=14 border-radius=9999 background-color=(job.step > 0 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 0 ? "rgb(9, 141, 72)" : "#d7dbdf")
-                  text "Queued with the sidecar" flex=1 color=(job.step > 0 ? "#596068" : "#11181c")
-                row gap=10 align-items="center"
-                  box width=14 height=14 border-radius=9999 background-color=(job.step > 1 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 1 ? "rgb(9, 141, 72)" : job.step == 1 ? "#11181c" : "#d7dbdf")
-                  text `Starting ${job.agent == "codex" ? "codex exec" : "claude -p"}` flex=1 color=(job.step > 1 ? "#596068" : job.step == 1 ? "#11181c" : "#687076")
-                row gap=10 align-items="center"
-                  box width=14 height=14 border-radius=9999 background-color=(job.step > 2 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 2 ? "rgb(9, 141, 72)" : job.step == 2 ? "#11181c" : "#d7dbdf")
-                  text `Loaded skill ${job.skill}.md` flex=1 color=(job.step > 2 ? "#596068" : job.step == 2 ? "#11181c" : "#687076")
-                row gap=10 align-items="center"
-                  box width=14 height=14 border-radius=9999 background-color=(job.step > 3 ? "rgb(9, 141, 72)" : "#ffffff") border-style="solid" border-width=1.5 border-color=(job.step > 3 ? "rgb(9, 141, 72)" : job.step == 3 ? "#11181c" : "#d7dbdf")
-                  text "Reading the diff and context via gh" flex=1 color=(job.step > 3 ? "#596068" : job.step == 3 ? "#11181c" : "#687076")
-                row gap=10 align-items="center"
-                  box width=14 height=14 border-radius=9999 background-color="#ffffff" border-style="solid" border-width=1.5 border-color=(job.step == 4 ? "#11181c" : "#d7dbdf")
-                  text "Drafting comments" flex=1 color=(job.step == 4 ? "#11181c" : "#687076")
+                Step(label="Queued with the sidecar", state=(job.step > 0 ? "done" : "active"), meta="")
+                Step(label=`Starting ${job.agent == "codex" ? "codex exec" : "claude -p"}`, state=(job.step > 1 ? "done" : job.step == 1 ? "active" : "pending"), meta="")
+                Step(label=`Loaded skill ${job.skill}.md`, state=(job.step > 2 ? "done" : job.step == 2 ? "active" : "pending"), meta="")
+                Step(label="Reading the diff and context via gh", state=(job.step > 3 ? "done" : job.step == 3 ? "active" : "pending"), meta=(job.step == 3 ? `${job.calls} calls` : ""))
+                Step(label="Drafting comments", state=(job.step == 4 ? "active" : "pending"), meta="")
               column background-color="#11181c" padding=12 padding-left=16 padding-right=16 gap=2 min-height=64
                 each line in job.log key=line
                   text line font-family="ui-monospace" font-size=11 line-height=1.7 color="#c9d1d9" line-clamp=1
@@ -904,6 +900,27 @@ component Revu
                       case none
                         box
                         box
+
+// One step of a running review (design 1d): done → a green dot with a
+// check, active → a spinner, pending → a faint ring.
+component Step
+  props
+    label: string
+    state: string
+    meta: string
+  view
+    row gap=10 align-items="center" font-size=13
+      column width=16 height=16 align-items="center" justify-content="center" flex-shrink=0
+        when state == "done"
+          column width=14 height=14 border-radius=9999 background-color="rgb(9, 141, 72)" align-items="center" justify-content="center"
+            text "✓" color="#ffffff" font-size=9 font-weight=700 line-height="9px"
+        when state == "active"
+          box width=14 height=14 border-radius=9999 border-style="solid" border-width=2 border-color="#d7dbdf" border-top-color="#11181c" box-sizing="border-box" animation="spin 900ms linear infinite"
+        when state == "pending"
+          box width=12 height=12 border-radius=9999 border-style="solid" border-width=1.5 border-color="#d7dbdf" box-sizing="border-box"
+      text label flex=1 color=(state == "done" ? "#596068" : state == "active" ? "#11181c" : "#687076")
+      when meta != ""
+        text meta font-family="ui-monospace" font-size=12 color="#687076"
 
 // Lucide icons (stroke 2, round caps), as in the design.
 component Icon

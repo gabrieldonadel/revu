@@ -686,7 +686,7 @@ function overall(summary: string): string {
   return head.replace(/^#{1,6}\s*overall\s*$/im, '').trim();
 }
 
-const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, agent: DEFAULT_AGENT, step: 0, progress: 0, elapsed: '0:00', log: [], summary: '', verdict: '', hasResult: false, comments: [], chosenCount: 0, posted: false, postedUrl: '', postedCount: 0, error: '' };
+const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, agent: DEFAULT_AGENT, step: 0, progress: 0, elapsed: '0:00', log: [], calls: 0, summary: '', verdict: '', hasResult: false, comments: [], chosenCount: 0, posted: false, postedUrl: '', postedCount: 0, error: '' };
 
 async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: number, _posted: number): Promise<Job> {
   if (!jobId) return emptyJob;
@@ -720,6 +720,7 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
       progress,
       elapsed: elapsed(String(body.startedAt ?? ''), body.finishedAt ? String(body.finishedAt) : null, now),
       log: lines.slice(-3),
+      calls: lines.filter((l) => /\$ gh /.test(l)).length,
       summary: result ? overall(String(result.summary ?? '')) : status === 'done' ? output.trim().slice(0, 600) : '',
       verdict: String(result?.verdict ?? 'COMMENT'),
       hasResult: result !== null,

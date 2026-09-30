@@ -37,6 +37,21 @@ export function availableAgents(): Record<AgentName, { available: boolean; path:
   };
 }
 
+/** The agent's environment: a login shell's basics and the token — not the
+ *  sidecar's own (a dev-run sidecar inherits its launcher's CLAUDE_* and
+ *  tooling variables, which would point the agent at someone else's config). */
+function agentEnv(token: string): Record<string, string> {
+  const keep = ['HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'TMPDIR', 'TERM'];
+  const env: Record<string, string> = {};
+  for (const k of keep) if (process.env[k]) env[k] = process.env[k]!;
+  env.PATH = searchPath();
+  env.GH_TOKEN = token;
+  env.GITHUB_TOKEN = token;
+  // Dev only: point Claude Code at another config dir (never set by the app).
+  if (process.env.REVU_DEV_CLAUDE_CONFIG_DIR) env.CLAUDE_CONFIG_DIR = process.env.REVU_DEV_CLAUDE_CONFIG_DIR;
+  return env;
+}
+
 function nowStamp(): string {
   return new Date().toTimeString().slice(0, 8);
 }
@@ -89,7 +104,7 @@ export const claudeRunner: Runner = {
     ];
     const proc = Bun.spawn([bin, ...args], {
       cwd: worktree,
-      env: { ...process.env, PATH: searchPath(), GH_TOKEN: token, GITHUB_TOKEN: token },
+      env: agentEnv(token),
       stdin: new Response(prompt).body ?? undefined,
       stdout: 'pipe',
       stderr: 'pipe',
@@ -130,7 +145,7 @@ export const codexRunner: Runner = {
     const args = ['exec', '--json', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-C', worktree, '--output-last-message', last, ...(model ? ['-m', model] : []), '-'];
     const proc = Bun.spawn([bin, ...args], {
       cwd: worktree,
-      env: { ...process.env, PATH: searchPath(), GH_TOKEN: token, GITHUB_TOKEN: token },
+      env: agentEnv(token),
       stdin: new Response(prompt).body ?? undefined,
       stdout: 'pipe',
       stderr: 'pipe',
