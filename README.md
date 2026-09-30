@@ -16,7 +16,12 @@ Rust 1.97, the vanilla Hermes engine built by a sibling `../ibex`).
 
 ```sh
 bun run app:web      # the web dev loop
-bun run app:mac      # build and launch on this Mac
+bun run app:mac      # build and launch the bare host binary (fast loop; no bundle identity)
+bun run app:bundle   # build revu.app — needed for notifications (bundle identity)
+bun run app:open     # launch the built revu.app
 ```
+
+Notifications need bundle identity, so test them from `revu.app`, not the
+bare binary `app:mac` launches. Each identity keeps its own Keychain token.
 
 Sign in from the window (device flow, LLP 0002). Config: `revu.config.json`.
