@@ -125,6 +125,7 @@ shape Comment
 shape LogLine
   index: number
   kind: string
+  time: string
   text: string
 
 shape Job
@@ -923,14 +924,20 @@ component Revu
               // The transcript fills what is left of the window: tool calls in
               // mono, the agent's thinking in a muted italic, its prose plain.
               scroll flex=1 min-height=120 background-color="light-dark(#11181c, #0f1318)" scrollTop=100000 testId="transcript"
-                column padding=12 padding-left=16 padding-right=16 gap=6
+                column padding-top=6 padding-bottom=10 padding-left=16 padding-right=16
+                  // One entry per row: the time in a dim column, a marker for
+                  // the kind ($ a command, ◦ a thought, › the agent's words),
+                  // the text clamped to three lines, a hairline between rows.
                   each line in job.log key=`${line.index}`
-                    when line.kind == "thought"
-                      text line.text font-size=12 line-height=1.5 font-style="italic" color="light-dark(#9aa4ae, #8b949e)" testId="thought"
-                    when line.kind == "say"
-                      text line.text font-size=12 line-height=1.5 color="light-dark(#e6edf3, #c9d1d9)"
-                    when line.kind == "tool"
-                      text line.text font-family="ui-monospace" font-size=11 line-height=1.7 color="light-dark(#c9d1d9, #9aa4ae)"
+                    row gap=10 align-items="flex-start" padding-top=7 padding-bottom=7 border-bottom-style="solid" border-bottom-width=1 border-bottom-color="light-dark(#1f242c, #171b21)"
+                      text line.time font-family="ui-monospace" font-size=10 line-height=1.6 color="light-dark(#687076, #6e7781)" width=52 flex-shrink=0 padding-top=1
+                      text (line.kind == "tool" ? "$" : line.kind == "thought" ? "◦" : "›") font-family="ui-monospace" font-size=11 line-height=1.6 width=10 flex-shrink=0 color=(line.kind == "tool" ? "light-dark(#4ade80, #4ade80)" : line.kind == "thought" ? "light-dark(#9aa4ae, #6e7781)" : "light-dark(#ffffff, #e6edf3)")
+                      when line.kind == "thought"
+                        text line.text font-size=12 line-height=1.5 font-style="italic" color="light-dark(#9aa4ae, #8b949e)" flex=1 min-width=0 line-clamp=3 testId="thought"
+                      when line.kind == "say"
+                        text line.text font-size=12 line-height=1.5 color="light-dark(#e6edf3, #c9d1d9)" flex=1 min-width=0 line-clamp=3
+                      when line.kind == "tool"
+                        text line.text font-family="ui-monospace" font-size=11 line-height=1.6 color="light-dark(#c9d1d9, #9aa4ae)" flex=1 min-width=0 line-clamp=3 overflow-wrap="anywhere"
                   when length(job.log) == 0
                     text "waiting for output…" font-family="ui-monospace" font-size=11 line-height=1.7 color="light-dark(#687076, #6e7781)"
                   when elapsedNow.quiet >= 20

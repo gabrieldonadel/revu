@@ -782,8 +782,10 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
       // The whole transcript, newest last; the window scrolls it. Each line
       // carries the kind the runner tagged it with (`thought:`, `say:`), else tool.
       log: lines.slice(-200).map((l, index) => {
-        const m = /^(\d\d:\d\d:\d\d) (thought|say): (.*)$/.exec(l);
-        return m ? { index, kind: m[2]!, text: m[3]! } : { index, kind: 'tool', text: l };
+        const m = /^(\d\d:\d\d:\d\d) (?:(thought|say): )?(.*)$/.exec(l);
+        if (!m) return { index, kind: 'tool', time: '', text: l };
+        const kind = m[2] ?? 'tool';
+        return { index, kind, time: m[1]!.slice(0, 5), text: kind === 'tool' ? summarise(m[3]!) : m[3]! };
       }),
       calls: lines.filter((l) => /\bgh (api|pr|repo|search)\b/.test(l) && !/ (thought|say): /.test(l)).length,
       lastOutputAt: String(body.lastOutputAt ?? body.startedAt ?? ''),
@@ -803,6 +805,18 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
   } catch (e) {
     return { ...emptyJob, id: jobId, status: 'failed', error: `The sidecar could not be reached: ${message(e)}` };
   }
+}
+
+/** A tool line, shortened for the transcript: a `cd … && gh api "repos/o/r/
+ *  contents/path?ref=sha" --jq …` becomes `gh api …/contents/path`; a shell
+ *  pipeline keeps its first command. The full text stays in the sidecar's job. */
+function summarise(line: string): string {
+  let t = line.replace(/^\$ /, '').replace(/^cd \S+ && /, '').trim();
+  const api = /gh api "?repos\/[^/"]+\/[^/"]+\/(contents|git\/trees|pulls|commits|compare)\/?([^"?\s]*)/.exec(t);
+  if (api) return `gh api …/${api[1]}/${api[2]!.replace(/^\/+/, '')}`.replace(/\/$/, '');
+  if (t.startsWith('gh pr ') || t.startsWith('gh search ')) return t.split(/\s+--jq|\s+\|/)[0]!.trim();
+  if (t.startsWith('writing ') || t.startsWith('reading ')) return t.replace(/\/Users\/[^/]+\/[^\s]*\//, '…/');
+  return t.length > 160 ? `${t.slice(0, 157)}…` : t;
 }
 
 /** The running review's elapsed time, re-asked each second by the app's 1 s clock (wall-clock ms). */
