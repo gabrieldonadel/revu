@@ -9,6 +9,8 @@ export const appId = 'dev.donadel.revu';
 export const grants = [
   'net.fetch https://api.github.com',
   'net.fetch https://github.com',
+  // Author avatars in the quick look.
+  'net.fetch https://avatars.githubusercontent.com',
   'secret.keep github.token',
   'sqlite.open app:/data/revu.db',
   // The AI-review sidecar on loopback (LLP 0001 §Transport, LLP 0004).
@@ -444,7 +446,7 @@ async function markSeen(storage: Storage, id: string): Promise<Result<'markSeen'
 
 // --- quick look (design 1c) ------------------------------------------------
 
-const emptyDetail: PrDetail = { ready: false, id: '', repo: '', number: 0, title: '', url: '', author: '', baseRef: '', headRef: '', headSha: '', baseSha: '', ci: 'none', ciLabel: '', files: 0, additions: 0, deletions: 0, changed: [], body: '', skill: DEFAULT_SKILL, skillRule: '*', error: '' };
+const emptyDetail: PrDetail = { ready: false, id: '', repo: '', number: 0, title: '', url: '', author: '', authorAvatar: '', baseRef: '', headRef: '', headSha: '', baseSha: '', ci: 'none', ciLabel: '', files: 0, additions: 0, deletions: 0, changed: [], body: '', skill: DEFAULT_SKILL, skillRule: '*', error: '' };
 
 async function prDetail(store: Store, storage: Storage, owner: string, name: string, number: string, _rulesStamp: number): Promise<PrDetail> {
   if (!owner || !name || !number || !(await loadToken(store, storage))) return emptyDetail;
@@ -466,6 +468,7 @@ async function prDetail(store: Store, storage: Storage, owner: string, name: str
       title: String(p.title ?? ''),
       url: String(p.html_url ?? ''),
       author: String(p.user?.login ?? ''),
+      authorAvatar: p.user?.avatar_url ? `${String(p.user.avatar_url)}${String(p.user.avatar_url).includes('?') ? '&' : '?'}s=72` : '',
       baseRef: String(p.base?.ref ?? ''),
       headRef: String(p.head?.ref ?? ''),
       headSha,
