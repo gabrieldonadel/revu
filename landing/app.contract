@@ -1,5 +1,5 @@
 // revu's landing page (LLP 0008) — the Claude Design file "Revu Landing Page":
-// header, hero, a desktop mock of the app, How it works, Skills, Open source,
+// header, hero, a desktop mock of the app, How it works, Skills, Open source (the repo),
 // footer. Light only, as designed. Tokens: the Expo design system
 // (colors_and_type.css). Lucide icons are drawn inline as svg paths.
 
@@ -12,9 +12,6 @@ shape Release
   sizeMb: string
   published: string
   prerelease: bool
-
-shape Notify
-  url: string
 
 // --- tokens (light) ---------------------------------------------------------
 // black #000 · blueblack rgb(0,0,32) · gray-900 #11181c · gray-850 #1b1f23 ·
@@ -72,19 +69,13 @@ style Divider
   width="100%" height=1 background-color="#eaecf0"
 
 component Landing
-  state email = ""
   state scrollY = 0
   resource release = latestRelease() as shape Release
-  resource notify = notifyLink(email) as shape Notify
 
   action go(url: string)
     openURL(url)
   action jump(y: number) writes scrollY
     scrollY = y
-  action typeEmail(v: string) writes email
-    email = v
-  action notifyMe
-    openURL(notify.url)
 
   view
     scroll width="100%" height="100%" scrollTop=scrollY testId="page"
@@ -110,15 +101,15 @@ component Landing
         column width="100%" max-width=1000 padding-top=88 padding-right=24 padding-bottom=56 padding-left=24 box-sizing="border-box" align-items="center" gap=24
           row align-items="center" gap=8 padding-top=4 padding-bottom=4 padding-left=4 padding-right=12 background-color="#ffffff" border-style="solid" border-width=1 border-color="#e1e4e8" border-radius=9999 font-size=12
             text "Free" padding-top=3 padding-bottom=3 padding-left=10 padding-right=10 background-color="rgba(0, 114, 222, 0.08)" color="#0072DE" border-radius=9999 font-size=11 font-weight=500
-            text "Open source soon"
+            text "Open source · MIT"
           text "Your review requests, in the menu bar" font-size=68 font-weight=700 line-height=1.05 letter-spacing=-2.4 color="#000000" text-align="center" max-width=900 testId="headline"
           text "Revu is a macOS menu bar app that tells you when someone requests your review on GitHub. It runs an AI review using the skill file you set for each repository, and you choose which comments get posted." font-size=17 line-height=1.55 color="#596068" text-align="center" max-width=620
           row gap=10 flex-wrap="wrap" justify-content="center"
             button press=go(release.assetUrl) class=PillLg testId="download"
               Icon(name="download", size=15, color="#ffffff")
               text "Download for macOS"
-            button press=jump(2250) class=PillOutline testId="hero-open-source"
-              text "Get notified when the source is public"
+            button press=go("https://github.com/gabrieldonadel/revu") class=PillOutline testId="hero-github"
+              text "View on GitHub"
           when release.ready
             text `${release.tag} · ${release.sizeMb} · ${release.published}${release.prerelease ? " · release candidate" : ""} · Apple Silicon, macOS 14+` font-size=12 color="#687076" testId="release-line"
 
@@ -199,12 +190,14 @@ component Landing
         column width="100%" background-color="#11181c" color="#ffffff" align-items="center" testId="open-source"
           column class=Wrap padding-top=96 padding-bottom=96 align-items="center" gap=20
             text "Open source" class=Eyebrow color="#c9d1d9"
-            text "Free to use. The source is coming soon." font-size=44 font-weight=700 letter-spacing=-1.3 line-height=1.1 color="#ffffff" text-align="center" max-width=720
-            text "Revu is free to download today. Leave your email and we'll tell you when the repository is public." font-size=16 line-height=1.6 color="#c9d1d9" text-align="center" max-width=560
-            row gap=8 flex-wrap="wrap" justify-content="center" width="100%" max-width=440
-              input value=email input=typeEmail type="email" placeholder="you@company.com" aria-label="Email address" flex=1 min-width=220 height=42 padding-left=16 padding-right=16 border-radius=9999 border-style="solid" border-width=1 border-color="#37414a" background-color="#1b1f23" color="#ffffff" font-size=14 box-sizing="border-box" testId="email"
-              button press=notifyMe height=42 padding-left=20 padding-right=20 border-radius=9999 border-width=0 background-color="#ffffff" color="#11181c" font-size=14 font-weight=500 display="flex" flex-direction="row" align-items="center" justify-content="center" testId="notify"
-                text "Notify me"
+            text "Free to use. Free to read." font-size=44 font-weight=700 letter-spacing=-1.3 line-height=1.1 color="#ffffff" text-align="center" max-width=720
+            text "Revu is open source under the MIT license. The app, the sidecar, the skills and every design decision (an LLP corpus) live in one repository. Issues and pull requests welcome." font-size=16 line-height=1.6 color="#c9d1d9" text-align="center" max-width=600
+            row gap=10 flex-wrap="wrap" justify-content="center"
+              button press=go("https://github.com/gabrieldonadel/revu") height=42 padding-left=20 padding-right=20 border-radius=9999 border-width=0 background-color="#ffffff" color="#11181c" font-size=14 font-weight=500 display="flex" flex-direction="row" align-items="center" justify-content="center" gap=8 testId="star"
+                Icon(name="github", size=16, color="#11181c")
+                text "Star on GitHub"
+              button press=go("https://github.com/gabrieldonadel/revu/tree/main/llp") height=42 padding-left=20 padding-right=20 border-radius=9999 border-style="solid" border-width=1 border-color="#37414a" background-color="transparent" color="#ffffff" font-size=14 font-weight=500 display="flex" flex-direction="row" align-items="center" justify-content="center" testId="llp"
+                text "Read the design decisions"
 
         // ---- footer ----------------------------------------------------
         column width="100%" border-top-style="solid" border-top-width=1 border-top-color="#eaecf0" align-items="center"
@@ -337,6 +330,8 @@ component Icon
       when name == "message-square-check"
         path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="m9 10 2 2 4-4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+      when name == "github"
+        path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
       when name == "file-text"
         path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M14 2v4a2 2 0 0 0 2 2h4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"

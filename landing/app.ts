@@ -38,16 +38,7 @@ async function latestRelease(): Promise<Release> {
   }
 }
 
-/** "Notify me": with no backend behind the page yet, the request is a mail
- *  to the maintainer with the address filled in (LLP 0008). */
-function notifyLink(email: string): Result<'notifyLink'> {
-  const subject = encodeURIComponent('Tell me when revu is open source');
-  const body = encodeURIComponent(`Please notify ${email.trim() || 'me'} when the revu repository is public.`);
-  return { url: `mailto:revu@donadel.dev?subject=${subject}&body=${body}` };
-}
-
 const sources: Sources = {
   latestRelease: () => latestRelease(),
-  notifyLink: ([email]) => notifyLink(String(email ?? '')),
 };
 export const answer: Answer = (source, args, store, storage, native) => sources[source](args, store, storage, native);

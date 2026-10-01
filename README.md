@@ -40,3 +40,7 @@ Notifications need bundle identity, so test them from `revu.app`, not the
 bare binary `app:mac` launches. Each identity keeps its own Keychain token.
 
 Sign in from the window (device flow, LLP 0002). Config: `revu.config.json`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
