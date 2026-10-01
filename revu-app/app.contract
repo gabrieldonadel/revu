@@ -101,6 +101,7 @@ shape PrDetail
 shape Started
   stamp: number
   id: string
+  prId: string
   error: string
 
 shape Prior
@@ -431,7 +432,9 @@ component Revu
   // The popover's job is the one it started; a review window's is its argument.
   // The job on screen: a review window's argument; else the one the user
   // chose to view (an earlier review); else the one this session started.
-  derive startedId = match started { case some(s) => s.id, case none => "" }
+  // The started job counts only for the pull request it was started for;
+  // a different PR's screen never borrows it (a flash of the old review).
+  derive startedId = match started { case some(s) => s.prId == detail.id ? s.id : "", case none => "" }
   derive startedStamp = match started { case some(s) => s.stamp, case none => 0 }
   derive jobId = role.kind == "review" ? role.arg : viewingJob != "" ? viewingJob : startedId
   // Re-ask for the prior review every 30 s (a cheap loopback list).
@@ -510,6 +513,9 @@ component Revu
   action runReview writes started, nav, selectedFinding, viewingJob
     selectedFinding = 0
     viewingJob = ""
+    // The previous answer goes first, so nothing of the old job shows while
+    // the new one is being asked for.
+    started = none
     send started = startReview(detail.id, detail.skill)
     nav = push(nav, path("review", prOwner, prName, prNumber))
   // An earlier review: show it — in its window when done, else its progress.

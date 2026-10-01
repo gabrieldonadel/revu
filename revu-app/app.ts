@@ -608,15 +608,15 @@ async function sidecarStatus(_tick: number, _pollMs: number): Promise<Result<'si
 async function startReview(store: Store, storage: Storage, id: string, skill: string): Promise<Result<'startReview'>> {
   const token = await loadToken(store, storage);
   const [repo, number] = id.split('#');
-  if (!token || !repo || !number) return { stamp: ++stamp, id: '', error: 'Nothing to review.' };
+  if (!token || !repo || !number) return { stamp: ++stamp, id: '', prId: id, error: 'Nothing to review.' };
   const [owner, name] = repo.split('/');
   try {
     const detail = await prDetail(store, storage, owner ?? '', name ?? '', number, 0);
-    if (!detail.ready) return { stamp: ++stamp, id: '', error: detail.error || 'The pull request could not be read.' };
+    if (!detail.ready) return { stamp: ++stamp, id: '', prId: id, error: detail.error || 'The pull request could not be read.' };
     // The sidecar checks the PR out itself; it gets the token over loopback
     // for that one clone and keeps it in memory only (LLP 0001 §Transport).
     const auth = await sidecar('/auth/token', { method: 'POST', body: JSON.stringify({ access_token: token }) });
-    if (!auth.ok) return { stamp: ++stamp, id: '', error: `The sidecar refused the token (${auth.status}).` };
+    if (!auth.ok) return { stamp: ++stamp, id: '', prId: id, error: `The sidecar refused the token (${auth.status}).` };
     const agent = await readSetting(storage, 'agent', DEFAULT_AGENT);
     const model = await readSetting(storage, 'model', DEFAULT_MODEL);
     const res = await sidecar('/reviews', {
@@ -624,10 +624,10 @@ async function startReview(store: Store, storage: Storage, id: string, skill: st
       body: JSON.stringify({ repo, number: Number(number), title: detail.title, body: detail.body, baseSha: detail.baseSha, headSha: detail.headSha, headRef: detail.headRef, url: detail.url, skill, agent, model }),
     });
     const body = (await res.json()) as Json;
-    if (!res.ok) return { stamp: ++stamp, id: '', error: String(body.error ?? `sidecar answered ${res.status}`) };
-    return { stamp: ++stamp, id: String(body.id ?? ''), error: '' };
+    if (!res.ok) return { stamp: ++stamp, id: '', prId: id, error: String(body.error ?? `sidecar answered ${res.status}`) };
+    return { stamp: ++stamp, id: String(body.id ?? ''), prId: id, error: '' };
   } catch (e) {
-    return { stamp: ++stamp, id: '', error: `The sidecar could not be reached: ${message(e)}` };
+    return { stamp: ++stamp, id: '', prId: id, error: `The sidecar could not be reached: ${message(e)}` };
   }
 }
 
