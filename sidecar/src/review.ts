@@ -45,6 +45,7 @@ export interface ReviewJob {
   resultPath: string | null;
   posted: { reviewId: number; url: string; count: number; dropped: string[] } | null;
   patches?: Record<string, string>; // per-file patches, fetched once for the hunks
+  files?: Record<string, string[]>; // whole files by side:path, for "expand"
 }
 
 /** What a runner must provide; the choice of runner is LLP 0004's decision. */
@@ -262,8 +263,33 @@ export async function hunksFor(job: ReviewJob, token: string, around = 3): Promi
     if (at < 0 && c.line_content) at = lines.findIndex((l) => l.text.includes(c.line_content!.trim()));
     if (at < 0) return [];
     lines[at]!.target = true;
-    return lines.slice(Math.max(0, at - around), at + around + 1).filter((l) => l.old !== -1 || l.new !== -1 || l.text.startsWith('@@'));
+    // The whole enclosing hunk, header included (GitHub shows a hunk whole);
+    // `around` only caps a huge one.
+    let start = at; while (start > 0 && !lines[start]!.text.startsWith('@@')) start -= 1;
+    let end = at + 1; while (end < lines.length && !lines[end]!.text.startsWith('@@')) end += 1;
+    const cap = Math.max(around * 10, 40);
+    const lo = Math.max(start, at - cap); const hi = Math.min(end, at + cap + 1);
+    return lines.slice(lo, hi);
   });
+}
+
+/** The whole file a comment points at, at the pull request's head (RIGHT)
+ *  or base (LEFT) commit, for the review window's "expand" (GitHub's ⤢).
+ *  Fetched once per path and side, kept on the job. */
+export async function fileAt(job: ReviewJob, token: string, path: string, side: 'LEFT' | 'RIGHT'): Promise<{ lines: string[]; sha: string } | null> {
+  const sha = side === 'LEFT' ? job.request.baseSha : job.request.headSha;
+  const key = `${side}:${path}`;
+  job.files ??= {};
+  if (job.files[key]) return { lines: job.files[key]!, sha };
+  const res = await fetch(`https://api.github.com/repos/${job.request.repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${sha}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.raw+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'revu-sidecar' },
+  });
+  if (!res.ok) return null;
+  const text = await res.text();
+  if (text.length > 2_000_000) return null;
+  const lines = text.split('\n');
+  job.files[key] = lines;
+  return { lines, sha };
 }
 
 /** The pull request's diff on the new side: for each file, the right-side
@@ -348,7 +374,8 @@ const jobsDir = resolve(paths.appSupport, 'reviews');
 function persist(job: ReviewJob): void {
   try {
     mkdirSync(jobsDir, { recursive: true });
-    const slim = { ...job, output: job.output.slice(-4000) };
+    const { files: _files, ...rest } = job;
+    const slim = { ...rest, output: job.output.slice(-4000) };
     writeFileSync(resolve(jobsDir, `${job.id.replace(/[^a-z0-9._-]/gi, '_')}.json`), JSON.stringify(slim));
   } catch { /* the disk is not the job's problem */ }
 }

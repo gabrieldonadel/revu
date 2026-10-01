@@ -112,11 +112,25 @@ shape Prior
   finished: string
   verdict: string
 
+shape FileLine
+  no: number
+  text: string
+  kind: string
+  target: bool
+
+shape FileView
+  ready: bool
+  path: string
+  sha: string
+  lines: list<FileLine>
+  error: string
+
 shape Comment
   index: number
   severity: string
   path: string
   line: number
+  side: string
   title: string
   body: string
   edited: bool
@@ -375,6 +389,12 @@ component Revu
   state secMs = 0
   state doneAnnounced = ""
   state viewingJob = ""
+  // Which finding's diff is expanded to the whole file (-1: none), and its
+  // file coordinates, copied in when the user expands (no list indexing here).
+  state expandedFinding = -1
+  state expandedPath = ""
+  state expandedSide = "RIGHT"
+  state expandedLine = 0
   state editingComment = -1
   state commentDraft = ""
   state verdict = ""
@@ -396,6 +416,8 @@ component Revu
   resource detail = prDetail(top(nav).params.owner, top(nav).params.name, top(nav).params.number, rulesStamp) as shape PrDetail
   resource job = reviewJob(jobId, tick, time.epochAtZero, toggledStamp, postedStamp, editedStamp) as shape Job
   // An earlier review of the pull request on screen, if the sidecar has one.
+  // The whole file behind the expanded finding (design 1e, GitHub's ⤢).
+  resource fileView = fileLines(jobId, expandedFinding, expandedPath, expandedSide, expandedLine, `${jobId}:${expandedFinding}`) as shape FileView
   resource prior = priorReview(`${prOwner}/${prName}`, detail.number, startedStamp, tick / 6) as shape Prior
   // The elapsed time ticks every second while a review runs (design 1d).
   resource elapsedNow = elapsedSince(job.startedAt, job.finishedAt, job.lastOutputAt, secMs) as shape Elapsed
@@ -529,9 +551,17 @@ component Revu
   action cancelReview writes cancelled, nav
     send cancelled = cancelReview(jobId)
     nav = back(nav)
-  action selectFinding(i: number) writes selectedFinding, editingComment
+  action selectFinding(i: number) writes selectedFinding, editingComment, expandedFinding
     selectedFinding = i
     editingComment = -1
+    expandedFinding = -1
+  action expandFinding(i: number, path: string, side: string, line: number) writes expandedFinding, expandedPath, expandedSide, expandedLine
+    expandedFinding = i
+    expandedPath = path
+    expandedSide = side
+    expandedLine = line
+  action collapseFinding writes expandedFinding
+    expandedFinding = -1
   action toggleComment(i: number) writes toggled
     send toggled = toggleComment(jobId, i)
   // Editing a comment: the draft lives in the window; each keystroke is
@@ -1026,15 +1056,41 @@ component Revu
                           text c.severity class=Tag text-transform="uppercase" background-color=(c.severity == "critical" ? "light-dark(rgb(255, 220, 220), rgba(207, 34, 46, 0.18))" : c.severity == "design" ? "light-dark(rgb(255, 244, 194), rgba(255, 210, 44, 0.16))" : c.severity == "suggestion" ? "light-dark(rgb(219, 231, 255), rgba(33, 136, 255, 0.18))" : "light-dark(#f5f5f7, #161a20)") color=(c.severity == "critical" ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : c.severity == "design" ? "light-dark(#8a6d00, #ffd36b)" : c.severity == "suggestion" ? "light-dark(#0072DE, #4aa8ff)" : "light-dark(#596068, #9aa4ae)")
                           text `${c.path}:${c.line}` font-family="ui-monospace" font-size=12 color="light-dark(#596068, #9aa4ae)" line-clamp=1
                         text c.title font-size=18 font-weight=600 letter-spacing=-0.2 line-height=1.3
-                        when length(c.hunk) > 0
+                        when length(c.hunk) > 0 or expandedFinding == c.index
                           column border-style="solid" border-width=1 border-color="light-dark(#eaecf0, #1f242c)" border-radius=8 overflow="hidden" font-family="ui-monospace" font-size=12 testId="hunk"
-                            each l in c.hunk key=`${l.oldNo}:${l.newNo}:${l.text}`
-                              when l.oldNo == -1 and l.newNo == -1
-                                text l.text padding-top=6 padding-bottom=6 padding-left=12 padding-right=12 background-color="light-dark(#f9fafb, #111418)" color="light-dark(#687076, #6e7781)" font-size=11 border-bottom-style="solid" border-bottom-width=1 border-color="light-dark(#eaecf0, #171b21)"
+                            // The file bar, as GitHub's: path, and ⤢ to see the whole file.
+                            row padding-top=6 padding-bottom=6 padding-left=12 padding-right=8 gap=8 align-items="center" background-color="light-dark(#f9fafb, #111418)" border-bottom-style="solid" border-bottom-width=1 border-color="light-dark(#eaecf0, #171b21)"
+                              text c.path font-size=11 color="light-dark(#596068, #9aa4ae)" line-clamp=1 flex=1 min-width=0
+                              when expandedFinding == c.index
+                                text (fileView.ready ? `@ ${fileView.sha}` : "") font-size=11 color="light-dark(#687076, #6e7781)"
+                                button press=collapseFinding class=OutlineSm height=22 font-size=11 testId="collapse-file"
+                                  text "Collapse"
                               else
-                                row background-color=(l.kind == "add" ? "light-dark(rgb(220, 255, 228), rgba(9, 141, 72, 0.18))" : l.kind == "del" ? "light-dark(rgb(255, 220, 220), rgba(207, 34, 46, 0.18))" : "transparent") border-left-style="solid" border-left-width=2 border-left-color=(l.target ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : "transparent")
-                                  text (l.newNo == -1 ? `${l.oldNo}` : `${l.newNo}`) width=40 text-align="right" padding-right=10 color="light-dark(#c9d1d9, #484f58)" line-height=1.7 flex-shrink=0
-                                  text `${l.kind == "add" ? "+" : l.kind == "del" ? "−" : " "} ${l.text}` white-space="pre" line-clamp=1 line-height=1.7 padding-left=8 flex=1 min-width=0
+                                button press=expandFinding(c.index, c.path, c.side, c.line) class=OutlineSm height=22 font-size=11 testId="expand-file"
+                                  text "⤢ Whole file"
+                            when expandedFinding == c.index
+                              when not fileView.ready and fileView.error == ""
+                                column padding=12 gap=6
+                                  Skeleton(w="70%", h=12)
+                                  Skeleton(w="55%", h=12)
+                                  Skeleton(w="80%", h=12)
+                              when fileView.error != ""
+                                text fileView.error class=Error padding=12
+                              when fileView.ready
+                                scroll max-height=480 testId="file-view"
+                                  column
+                                    each fl in fileView.lines key=`${fl.no}`
+                                      row background-color=(fl.kind == "add" ? "light-dark(rgb(220, 255, 228), rgba(9, 141, 72, 0.18))" : fl.kind == "del" ? "light-dark(rgb(255, 220, 220), rgba(207, 34, 46, 0.18))" : "transparent") border-left-style="solid" border-left-width=2 border-left-color=(fl.target ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : "transparent")
+                                        text `${fl.no}` width=40 text-align="right" padding-right=10 color="light-dark(#c9d1d9, #484f58)" line-height=1.7 flex-shrink=0
+                                        text `${fl.kind == "add" ? "+" : fl.kind == "del" ? "−" : " "} ${fl.text}` white-space="pre" line-clamp=1 line-height=1.7 padding-left=8 flex=1 min-width=0
+                            else
+                              each l in c.hunk key=`${l.oldNo}:${l.newNo}:${l.text}`
+                                when l.oldNo == -1 and l.newNo == -1
+                                  text l.text padding-top=6 padding-bottom=6 padding-left=12 padding-right=12 background-color="light-dark(#f9fafb, #111418)" color="light-dark(#687076, #6e7781)" font-size=11 border-bottom-style="solid" border-bottom-width=1 border-color="light-dark(#eaecf0, #171b21)"
+                                else
+                                  row background-color=(l.kind == "add" ? "light-dark(rgb(220, 255, 228), rgba(9, 141, 72, 0.18))" : l.kind == "del" ? "light-dark(rgb(255, 220, 220), rgba(207, 34, 46, 0.18))" : "transparent") border-left-style="solid" border-left-width=2 border-left-color=(l.target ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : "transparent")
+                                    text (l.newNo == -1 ? `${l.oldNo}` : `${l.newNo}`) width=40 text-align="right" padding-right=10 color="light-dark(#c9d1d9, #484f58)" line-height=1.7 flex-shrink=0
+                                    text `${l.kind == "add" ? "+" : l.kind == "del" ? "−" : " "} ${l.text}` white-space="pre" line-clamp=1 line-height=1.7 padding-left=8 flex=1 min-width=0
                         column gap=6
                           row justify-content="space-between" align-items="center"
                             row gap=8 align-items="center"

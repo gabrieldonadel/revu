@@ -698,6 +698,33 @@ function chosenFor(jobId: string, comments: Json[]): Set<number> {
   return set;
 }
 
+/** The whole file behind a finding (design 1e's "expand", as GitHub's ⤢):
+ *  numbered lines, the changed ones marked from the hunk, the target flagged. */
+async function fileLines(jobId: string, index: number, path: string, side: string, line: number, _hunkKey: string): Promise<Result<'fileLines'>> {
+  const none = { ready: false, path, sha: '', lines: [] as Array<{ no: number; text: string; kind: string; target: boolean }>, error: '' };
+  if (!jobId || !path) return none;
+  try {
+    const res = await sidecar(`/reviews/${encodeURIComponent(jobId)}/file?path=${encodeURIComponent(path)}&side=${side === 'LEFT' ? 'LEFT' : 'RIGHT'}`);
+    const body = (await res.json()) as Json;
+    if (!res.ok) return { ...none, error: String(body.error ?? `sidecar answered ${res.status}`) };
+    const raw = (body.lines ?? []) as string[];
+    // Which lines the diff touched on this side, from the job's hunks.
+    const jobRes = await sidecar(`/reviews/${encodeURIComponent(jobId)}`);
+    const jobBody = (await jobRes.json()) as Json;
+    const hunk = ((jobBody.hunks ?? []) as Json[][])[index] ?? [];
+    const changed = new Set<number>(hunk.filter((l) => (side === 'LEFT' ? l.kind === 'del' : l.kind === 'add')).map((l) => Number(side === 'LEFT' ? l.old : l.new)));
+    return {
+      ready: true,
+      path,
+      sha: String(body.sha ?? '').slice(0, 7),
+      lines: raw.map((text, i) => ({ no: i + 1, text, kind: changed.has(i + 1) ? (side === 'LEFT' ? 'del' : 'add') : 'context', target: i + 1 === line })),
+      error: '',
+    };
+  } catch (e) {
+    return { ...none, error: `The sidecar could not be reached: ${message(e)}` };
+  }
+}
+
 /** The user's edited wording, per job and comment; empty = the agent's. */
 const edits = new Map<string, Map<number, string>>();
 
@@ -765,7 +792,7 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
       const text = edited.get(index) ?? original;
       const title = original.split('\n')[0]?.slice(0, 140) ?? '';
       const hunk: HunkLine[] = (hunks[index] ?? []).map((l) => ({ kind: String(l.kind ?? 'context'), oldNo: Number(l.old ?? -1), newNo: Number(l.new ?? -1), text: String(l.text ?? ''), target: Boolean(l.target) }));
-      return { index, severity: String(c.severity ?? 'suggestion'), path: String(c.path ?? ''), line: Number(c.line ?? 0), title, body: text, edited: edited.has(index), chosen: set.has(index), hunk };
+      return { index, severity: String(c.severity ?? 'suggestion'), path: String(c.path ?? ''), line: Number(c.line ?? 0), side: c.side === 'LEFT' ? 'LEFT' : 'RIGHT', title, body: text, edited: edited.has(index), chosen: set.has(index), hunk };
     });
     const posted = (body.posted ?? null) as Json | null;
     return {
@@ -1028,6 +1055,7 @@ const sources: Sources = {
   prDetail: ([owner, name, number, rulesStamp], store, storage) => prDetail(store, storage, String(owner ?? ''), String(name ?? ''), String(number ?? ''), Number(rulesStamp)),
   reviewJob: ([jobId, tick, epoch, toggled, posted, edited]) => reviewJob(String(jobId ?? ''), Number(tick), Number(epoch), Number(toggled), Number(posted), Number(edited)),
   editComment: ([jobId, index, text]) => editComment(String(jobId ?? ''), Number(index), String(text ?? '')),
+  fileLines: ([jobId, index, path, side, line, hunkKey]) => fileLines(String(jobId ?? ''), Number(index), String(path ?? ''), String(side ?? 'RIGHT'), Number(line), String(hunkKey ?? '')),
   agentSettings: ([stamp], _store, storage) => agentSettings(storage, Number(stamp)),
   setAgent: ([name], _store, storage) => setAgent(storage, String(name ?? '')),
   setModel: ([model], _store, storage) => setModel(storage, String(model ?? '')),

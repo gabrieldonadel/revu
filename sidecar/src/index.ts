@@ -8,7 +8,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { loadConfig } from './config.ts';
 import { closeMissing, getMeta, listPending, markSeen, openDb, setMeta, upsertPr, type PullRequestRow } from './db.ts';
 import { GitHubClient, pollDeviceFlow, startDeviceFlow, type ReviewRequest } from './github.ts';
-import { cancelJob, getJob, hunksFor, listJobs, listSkills, loadPersistedJobs, postReview, readSkill, startReview, writeSkill, type ReviewRequest as ReviewJobRequest } from './review.ts';
+import { cancelJob, fileAt, getJob, hunksFor, listJobs, listSkills, loadPersistedJobs, postReview, readSkill, startReview, writeSkill, type ReviewRequest as ReviewJobRequest } from './review.ts';
 import { availableAgents, runners, type AgentName } from './runners.ts';
 
 const config = loadConfig();
@@ -312,6 +312,18 @@ const server = Bun.serve<undefined>({
       const hunks = job.result && token ? await hunksFor(job, token).catch(() => []) : [];
       return json({ ...slim, hunks });
     }
+    const file = path.match(/^\/reviews\/([^/]+)\/file$/);
+    if (request.method === 'GET' && file) {
+      if (!token) return json({ error: 'not authenticated' }, 401);
+      const job = getJob(decodeURIComponent(file[1]!));
+      if (!job) return json({ error: 'not found' }, 404);
+      const filePath = url.searchParams.get('path') ?? '';
+      const side = url.searchParams.get('side') === 'LEFT' ? 'LEFT' : 'RIGHT';
+      if (!filePath) return json({ error: 'path is required' }, 400);
+      const got = await fileAt(job, token, filePath, side).catch(() => null);
+      return got ? json(got) : json({ error: 'the file could not be fetched' }, 502);
+    }
+
     const post = path.match(/^\/reviews\/([^/]+)\/post$/);
     if (request.method === 'POST' && post) {
       if (!token) return json({ error: 'not authenticated' }, 401);
