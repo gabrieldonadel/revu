@@ -51,6 +51,10 @@ final class Notifier: ExactModule {
     private var secondary: SecondaryWindow?
     #endif
 
+    /// The APNs device token (hex), once the OS has handed one over (LLP 0009).
+    fileprivate(set) static var pushToken = ""
+    fileprivate static var pushTokenOwner: Notifier?
+
     required init(context: ExactModuleContext) {
         super.init(context: context)
         if context.agent { permission = "granted" }
@@ -60,6 +64,8 @@ final class Notifier: ExactModule {
                 menuBar = MenuBar()
                 MenuBar.shared = menuBar
                 Sidecar.startIfNeeded()
+                Notifier.pushTokenOwner = self
+                RemotePush.registerIfEntitled()
             } else {
                 role = MenuBar.pendingRole ?? "window"
                 roleArg = MenuBar.pendingArg ?? ""
@@ -100,6 +106,8 @@ final class Notifier: ExactModule {
             return tray(request)
         case "role":
             return ["kind": role, "arg": roleArg]
+        case "pushToken":
+            return ["token": Notifier.pushToken, "entitled": RemotePush.entitled]
         case let op:
             throw ExactNativeRefusal("the notifier answers no call \(op.map { "\"\($0)\"" } ?? "null")")
         }
@@ -553,6 +561,40 @@ final class MenuBar: NSObject {
         let image = NSImage(size: size, flipped: false) { _ in true }
         image.isTemplate = true
         return image
+    }
+}
+
+/// Remote notifications (LLP 0009): a build signed with the `aps-environment`
+/// entitlement registers with APNs; the token reaches the app as a device
+/// change on the `push` topic (the `pushToken` call reads it) and the app
+/// hands it to the sidecar, which registers it with the relay. An ad-hoc
+/// build has no entitlement and skips all of this. The device token
+/// callbacks are the application delegate's, which is ExactMac's; the two
+/// selectors are added to its class at load.
+enum RemotePush {
+    static var entitled: Bool {
+        guard let task = SecTaskCreateFromSelf(nil) else { return false }
+        return SecTaskCopyValueForEntitlement(task, "aps-environment" as CFString, nil) != nil
+    }
+
+    static func registerIfEntitled() {
+        guard entitled, let delegate = NSApp.delegate else { return }
+        let cls: AnyClass = type(of: delegate)
+        let got: @convention(block) (AnyObject, NSApplication, Data) -> Void = { _, _, data in
+            Notifier.pushToken = data.map { String(format: "%02x", $0) }.joined()
+            Notifier.pushTokenOwner?.context.changed("push")
+        }
+        let failed: @convention(block) (AnyObject, NSApplication, Error) -> Void = { _, _, error in
+            NSLog("revu: APNs registration failed: %@", error.localizedDescription)
+        }
+        class_addMethod(cls, #selector(NSApplicationDelegate.application(_:didRegisterForRemoteNotificationsWithDeviceToken:)), imp_implementationWithBlock(got), "v@:@@")
+        class_addMethod(cls, #selector(NSApplicationDelegate.application(_:didFailToRegisterForRemoteNotificationsWithError:)), imp_implementationWithBlock(failed), "v@:@@")
+        // A push that arrives while the app runs: re-poll at once (the OS shows the alert itself).
+        let received: @convention(block) (AnyObject, NSApplication, [String: Any]) -> Void = { _, _, _ in
+            Notifier.pushTokenOwner?.context.changed("pushed")
+        }
+        class_addMethod(cls, #selector(NSApplicationDelegate.application(_:didReceiveRemoteNotification:)), imp_implementationWithBlock(received), "v@:@@")
+        NSApp.registerForRemoteNotifications()
     }
 }
 

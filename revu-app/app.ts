@@ -1018,6 +1018,41 @@ async function notificationActions(storage: Storage, native: Native, now: number
   return { stamp: applied.length ? now : 0, applied };
 }
 
+/** The APNs token, once the OS hands one over (LLP 0009); the app registers
+ *  it with the relay through the sidecar. Watches the module's `push` topic. */
+let registeredPush = '';
+async function pushRegistration(store: Store, storage: Storage, native: Native): Promise<Result<'pushRegistration'>> {
+  const n = notifier(native);
+  if (!n) return { entitled: false, token: '', registered: false, error: '' };
+  n.watch('push');
+  let r: { token?: string; entitled?: boolean };
+  try { r = n.call({ op: 'pushToken' }) as typeof r; } catch { return { entitled: false, token: '', registered: false, error: '' }; }
+  const token = String(r.token ?? '');
+  if (!r.entitled) return { entitled: false, token: '', registered: false, error: '' };
+  if (!token) return { entitled: true, token: '', registered: false, error: '' };
+  const gh = await loadToken(store, storage);
+  if (!gh) return { entitled: true, token, registered: false, error: 'sign in first' };
+  if (registeredPush === token) return { entitled: true, token, registered: true, error: '' };
+  try {
+    const res = await sidecar('/push/register', { method: 'POST', body: JSON.stringify({ token, github_token: gh }) });
+    const body = (await res.json()) as Json;
+    if (!res.ok) return { entitled: true, token, registered: false, error: String(body.error ?? `sidecar answered ${res.status}`) };
+    registeredPush = token;
+    return { entitled: true, token, registered: true, error: '' };
+  } catch (e) {
+    return { entitled: true, token, registered: false, error: message(e) };
+  }
+}
+
+/** A push arrived while running (the module's `pushed` topic): a stamp the inbox depends on. */
+let pushedCount = 0;
+async function pushed(native: Native): Promise<Result<'pushed'>> {
+  const n = notifier(native);
+  if (n) n.watch('pushed');
+  pushedCount += 1;
+  return { stamp: pushedCount };
+}
+
 /** The menu bar item follows the inbox and the running review (LLP 0006). */
 async function trayState(native: Native, count: number, busy: boolean): Promise<Result<'trayState'>> {
   const n = notifier(native);
@@ -1071,6 +1106,8 @@ const sources: Sources = {
   windowRole: (_, _store, _storage, native) => windowRole(native),
   openWindow: ([kind, arg], _store, _storage, native) => openWindow(native, String(kind ?? 'settings'), String(arg ?? '')),
   notifyDone: ([jobId, title, count], _store, _storage, native) => notifyDone(native, String(jobId ?? ''), String(title ?? ''), Number(count)),
+  pushRegistration: (_, store, storage, native) => pushRegistration(store, storage, native),
+  pushed: (_, _store, _storage, native) => pushed(native),
   trayState: ([count, busy], _store, _storage, native) => trayState(native, Number(count), Boolean(busy)),
   notificationStatus: (_, _store, _storage, native) => notificationStatus(native),
   requestNotificationPermission: (_, _store, _storage, native) => requestNotificationPermission(native),

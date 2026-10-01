@@ -278,6 +278,15 @@ shape Seen
   stamp: number
   id: string
 
+shape PushReg
+  entitled: bool
+  token: string
+  registered: bool
+  error: string
+
+shape Pushed
+  stamp: number
+
 shape Tray
   ok: bool
 
@@ -427,7 +436,7 @@ component Revu
   // its stamp so a "Mark read" from a banner shows at once.
   resource actions = notificationActions(nowMs) as shape Actions
   // pollMs moves once a minute (and on Refresh), not every clock tick.
-  resource inbox = reviewRequests(session.login, pollMs, time.epochAtZero, actions.stamp) as shape Inbox
+  resource inbox = reviewRequests(session.login, pollMs, time.epochAtZero, actions.stamp + pushedAt.stamp * 1000003) as shape Inbox
   resource detail = prDetail(top(nav).params.owner, top(nav).params.name, top(nav).params.number, rulesStamp) as shape PrDetail
   resource job = reviewJob(jobId, tick, time.epochAtZero, toggledStamp, postedStamp, editedStamp) as shape Job
   // An earlier review of the pull request on screen, if the sidecar has one.
@@ -444,6 +453,10 @@ component Revu
   resource testMatch = matchSkill(testRepo, rulesStamp) as shape SkillMatch
   // The menu bar item (LLP 0006): the pending count, a spinner while reviewing.
   resource tray = trayState(inbox.total, reviewing) as shape Tray
+  // Remote notifications (LLP 0009): the token's registration, and a stamp
+  // that moves when a push arrives so the inbox re-asks at once.
+  resource pushReg = pushRegistration() as shape PushReg
+  resource pushedAt = pushed() as shape Pushed
   // Which window this session draws (LLP 0006 D2): the popover, or "settings".
   resource role = windowRole() as shape WindowRole
 
@@ -1202,6 +1215,9 @@ component Revu
                 when notifications.available and notifications.permission != "granted"
                   button press=askPermission class=Outline align-self="flex-start" testId="ask-permission"
                     text "Allow notifications"
+                row justify-content="space-between" align-items="center"
+                  text "Instant notifications" font-size=13
+                  text (pushReg.entitled ? (pushReg.registered ? "on (Apple push)" : pushReg.error != "" ? pushReg.error : "registering…") : "polling every 60 s (this build is not signed for push)") class=Secondary testId="push-status"
                 row justify-content="space-between" align-items="center"
                   text "AI review sidecar" font-size=13
                   text (sidecar.reachable ? `ready · runner ${sidecar.runner}` : "offline") class=Secondary testId="sidecar-status"

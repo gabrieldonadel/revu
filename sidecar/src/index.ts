@@ -240,6 +240,18 @@ const server = Bun.serve<undefined>({
       return json({ status: 'pending' });
     }
 
+    // @ref LLP 0009 — the Mac's APNs token goes to the relay with the GitHub
+    // token as proof of who it is; the relay keeps the login, never the token.
+    if (request.method === 'POST' && path === '/push/register') {
+      const body = (await request.json().catch(() => ({}))) as { token?: string; github_token?: string };
+      if (!body.token || !body.github_token) return json({ error: 'token and github_token are required' }, 400);
+      const base = config.github.oauthExchangeUrl?.replace(/\/oauth\/exchange$/, '');
+      if (!base) return json({ error: 'no relay configured' }, 500);
+      const res = await fetch(`${base}/devices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: body.token, github_token: body.github_token, bundle: 'dev.donadel.revu' }) });
+      const out = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      return json(out, res.status);
+    }
+
     // Dev loop only: the app hands its token here at review time; a local
     // tool may read it back to seed the app's own store (loopback only).
     if (request.method === 'GET' && path === '/auth/token') {
