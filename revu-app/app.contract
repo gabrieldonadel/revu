@@ -104,6 +104,21 @@ shape Started
   prId: string
   error: string
 
+shape RecentItem
+  id: string
+  repo: string
+  number: number
+  title: string
+  finished: string
+  findings: number
+  verdict: string
+  posted: bool
+  agent: string
+
+shape Recent
+  ready: bool
+  items: list<RecentItem>
+
 shape Prior
   exists: bool
   id: string
@@ -418,6 +433,8 @@ component Revu
   // An earlier review of the pull request on screen, if the sidecar has one.
   // The whole file behind the expanded finding (design 1e, GitHub's ⤢).
   resource fileView = fileLines(jobId, expandedFinding, expandedPath, expandedSide, expandedLine, `${jobId}:${expandedFinding}`) as shape FileView
+  // Finished reviews, for the popover's Reviewed tab (re-asked each minute and after a start).
+  resource recent = recentReviews(tick / 12, startedStamp) as shape Recent
   resource prior = priorReview(`${prOwner}/${prName}`, detail.number, startedStamp, tick / 6) as shape Prior
   // The elapsed time ticks every second while a review runs (design 1d).
   resource elapsedNow = elapsedSince(job.startedAt, job.finishedAt, job.lastOutputAt, secMs) as shape Elapsed
@@ -541,6 +558,11 @@ component Revu
     send started = startReview(detail.id, detail.skill)
     nav = push(nav, path("review", prOwner, prName, prNumber))
   // An earlier review: show it — in its window when done, else its progress.
+  // A finished review from the Reviewed tab: its window.
+  action showRecent(id: string) writes viewingJob, selectedFinding, reviewOpened
+    selectedFinding = 0
+    viewingJob = id
+    send reviewOpened = openWindow("review", id)
   action showPrior writes viewingJob, selectedFinding, reviewOpened, nav
     selectedFinding = 0
     viewingJob = prior.id
@@ -751,6 +773,9 @@ component Revu
             button press=setFilter("teams") class=(filter == "teams" ? ChipOn : Chip) testId="filter-teams"
               text "Teams"
               text `${inbox.teamCount}` color="light-dark(#687076, #6e7781)"
+            button press=setFilter("reviewed") class=(filter == "reviewed" ? ChipOn : Chip) testId="filter-reviewed"
+              text "Reviewed"
+              text `${length(recent.items)}` color="light-dark(#687076, #6e7781)"
           box class=Divider
           when notifications.available and notifications.permission != "granted"
             row padding-left=16 padding-right=16 padding-top=8 padding-bottom=8 gap=8 align-items="center" background-color="light-dark(#f9fafb, #111418)"
@@ -762,13 +787,27 @@ component Revu
             text inbox.error class=Error padding-left=16 padding-right=16 padding-top=8 testId="error"
           scroll flex=1 min-height=0
             column padding-bottom=6
-              when filter != "teams"
+              when filter == "reviewed"
+                text "Recently reviewed" class=SectionLabel padding-top=10 padding-left=16 padding-right=16 padding-bottom=4
+                each rv in recent.items key=rv.id
+                  button press=showRecent(rv.id) class=Row testId=`recent-${rv.id}`
+                    column width=14 height=14 border-radius=9999 margin-top=3 flex-shrink=0 background-color=(rv.verdict == "APPROVE" ? "light-dark(rgb(9, 141, 72), #4ade80)" : rv.verdict == "REQUEST_CHANGES" ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : "light-dark(#687076, #6e7781)") align-items="center" justify-content="center"
+                      text "✓" color="#fff" font-size=9 font-weight=700 line-height="9px"
+                    column flex=1 min-width=0 gap=3
+                      text `${rv.repo} #${rv.number}` class=MonoLabel
+                      text rv.title font-size=13 font-weight=500 line-height=1.35 line-clamp=2
+                      text `${rv.findings} ${rv.findings == 1 ? "finding" : "findings"} · ${rv.verdict == "APPROVE" ? "approve" : rv.verdict == "REQUEST_CHANGES" ? "request changes" : "comment"}${rv.posted ? " · posted" : ""} · ${rv.finished}` class=Secondary line-clamp=1
+                    row class=OutlineSm
+                      text "Open"
+                when recent.ready and length(recent.items) == 0
+                  text "No reviews yet. Open a request and run one." class=Tertiary padding-left=16 padding-top=6 padding-bottom=6 testId="empty-reviewed"
+              when filter != "teams" and filter != "reviewed"
                 text "Requested from you" class=SectionLabel padding-top=10 padding-left=16 padding-right=16 padding-bottom=4
                 each r in inbox.mine key=r.id
                   ReviewRow(r=r, press=openPr(r.id, r.owner, r.name, `${r.number}`))
                 when inbox.ready and inbox.mineCount == 0
                   text "Nothing waiting on you." class=Tertiary padding-left=16 padding-top=6 padding-bottom=6 testId="empty-mine"
-              when filter != "mine"
+              when filter != "mine" and filter != "reviewed"
                 text "Requested from teams" class=SectionLabel padding-top=12 padding-left=16 padding-right=16 padding-bottom=4
                 each r in inbox.team key=r.id
                   ReviewRow(r=r, press=openPr(r.id, r.owner, r.name, `${r.number}`))

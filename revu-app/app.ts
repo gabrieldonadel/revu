@@ -882,6 +882,33 @@ async function priorReview(repo: string, number: number, _startedStamp: number, 
   }
 }
 
+/** Finished reviews the sidecar keeps, newest first: the popover's
+ *  "Reviewed" tab (Gabriel, 2026-10-01). */
+async function recentReviews(_tick: number, _startedStamp: number): Promise<Result<'recentReviews'>> {
+  try {
+    const res = await sidecar('/reviews');
+    if (!res.ok) return { ready: true, items: [] };
+    const jobs = ((await res.json()) as Json[]).filter((j) => j.status === 'done' && j.result);
+    jobs.sort((a, b) => String(b.finishedAt ?? b.startedAt).localeCompare(String(a.finishedAt ?? a.startedAt)));
+    return {
+      ready: true,
+      items: jobs.slice(0, 30).map((j) => ({
+        id: String(j.id),
+        repo: String(j.request?.repo ?? ''),
+        number: Number(j.request?.number ?? 0),
+        title: String(j.request?.title ?? ''),
+        finished: j.finishedAt ? age(String(j.finishedAt), Date.now()) : '',
+        findings: Array.isArray(j.result?.comments) ? j.result.comments.length : 0,
+        verdict: String(j.result?.verdict ?? 'COMMENT'),
+        posted: Boolean(j.posted),
+        agent: String(j.request?.agent ?? 'claude'),
+      })),
+    };
+  } catch {
+    return { ready: false, items: [] };
+  }
+}
+
 async function cancelReview(jobId: string): Promise<Result<'cancelReview'>> {
   if (!jobId) return { stamp: ++stamp, ok: false };
   try {
@@ -1074,6 +1101,7 @@ const sources: Sources = {
   markSeen: ([id], _store, storage) => markSeen(storage, String(id)),
   startReview: ([id, skill], store, storage) => startReview(store, storage, String(id ?? ''), String(skill ?? DEFAULT_SKILL)),
   cancelReview: ([jobId]) => cancelReview(String(jobId ?? '')),
+  recentReviews: ([tick, startedStamp]) => recentReviews(Number(tick), Number(startedStamp)),
   priorReview: ([repo, number, startedStamp, tick]) => priorReview(String(repo ?? ''), Number(number), Number(startedStamp), Number(tick)),
   elapsedSince: ([startedAt, finishedAt, lastOutputAt, nowMs]) => elapsedSince(String(startedAt ?? ''), String(finishedAt ?? ''), String(lastOutputAt ?? ''), Number(nowMs)),
   addRule: ([pattern, skill], _store, storage) => addRule(storage, String(pattern ?? ''), String(skill ?? '')),
