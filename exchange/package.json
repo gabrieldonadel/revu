@@ -5,7 +5,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "export": "expo export --platform web",
-    "deploy": "expo export --platform web && eas deploy --prod"
+    "deploy": "expo export --platform web && eas deploy --prod --environment production"
   },
   "dependencies": {
     "expo": "~54.0.0",

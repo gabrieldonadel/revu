@@ -98,3 +98,10 @@ permits any port on a registered loopback callback URL):
 The device code is started alongside and shown beneath the button, for a
 machine where the browser cannot reach the sidecar's port. The OAuth app's
 callback URL is `http://127.0.0.1/oauth/callback`.
+
+Operational note (2026-10-01): EAS Hosting hands API routes only *plain
+text* and *sensitive* variables — a *secret*-visibility variable never
+reaches a deployment — and `eas deploy` must name the environment
+(`--environment production`) for the variables to be bound. The secret was
+set by Gabriel; `exchange/` is redeployed with
+`bunx expo export --platform web && eas deploy --prod --environment production`.
