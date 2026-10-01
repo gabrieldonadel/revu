@@ -331,6 +331,15 @@ final class MenuBar: NSObject {
     /// Windows by kind, kept across hides.
     static var windows: [String: SecondaryWindow] = [:]
 
+    /// The Dock icon follows the windows (Gabriel, 2026-10-01): a menu bar app
+    /// with only its popover has none; while a Settings or Review window is
+    /// visible the app is a regular one, with a Dock tile to find it by.
+    static func dockFollowsWindows() {
+        let anyVisible = windows.values.contains { $0.window?.isVisible == true }
+        let wanted: NSApplication.ActivationPolicy = anyVisible ? .regular : .accessory
+        if NSApp.activationPolicy() != wanted { NSApp.setActivationPolicy(wanted) }
+    }
+
     private let item: NSStatusItem
     private var spinner: NSProgressIndicator?
     private(set) weak var popover: NSWindow?
@@ -651,16 +660,21 @@ final class SecondaryWindow: NSObject {
     func show() {
         guard let w = window else { return }
         MenuBar.shared?.hide()
+        MenuBar.dockFollowsWindows()
         w.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func hide() { window?.orderOut(nil) }
+    @objc private func hide() {
+        window?.orderOut(nil)
+        MenuBar.dockFollowsWindows()
+    }
 
     @objc private func becameKey(_ note: Notification) { MenuBar.shared?.hide() }
 
     @objc private func closed(_ note: Notification) {
         if MenuBar.windows[key] === self { MenuBar.windows.removeValue(forKey: key) }
+        DispatchQueue.main.async { MenuBar.dockFollowsWindows() }
     }
 }
 #endif
