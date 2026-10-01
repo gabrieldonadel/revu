@@ -1,133 +1,345 @@
-// revu's landing page (LLP 0008): a placeholder until the design arrives —
-// the mark, the one-line pitch, what the app does, and the current download.
-// Built with exact2 for the web; the same page runs as a Mac window.
-// Tokens: the Expo design system, light-dark() throughout (as the app).
+// revu's landing page (LLP 0008) — the Claude Design file "Revu Landing Page":
+// header, hero, a desktop mock of the app, How it works, Skills, Open source,
+// footer. Light only, as designed. Tokens: the Expo design system
+// (colors_and_type.css). Lucide icons are drawn inline as svg paths.
 
 shape Release
   ready: bool
   tag: string
-  name: string
   url: string
   assetUrl: string
   assetName: string
   sizeMb: string
   published: string
-  notes: string
   prerelease: bool
 
+shape Notify
+  url: string
+
+// --- tokens (light) ---------------------------------------------------------
+// black #000 · blueblack rgb(0,0,32) · gray-900 #11181c · gray-850 #1b1f23 ·
+// gray-700 #37414a · gray-400 #c9d1d9 · gray-25 #fbfcfd · fg-default #11181c ·
+// fg-secondary #596068 · fg-tertiary #687076 · fg-disabled #c9d1d9 ·
+// border-default #e1e4e8 · border-subtle #eaecf0 · border-strong #d7dbdf ·
+// bg-subtle #f9fafb · bg-element #f5f5f7 · bg-hover #f0f1f2 · brand-blue #0072DE
+
 style Page
-  width="100%" min-height="100%" background-color="light-dark(#ffffff, #0b0f14)" color="light-dark(#11181c, #e6edf3)" font-family="system-ui" display="flex" flex-direction="column" align-items="center"
+  width="100%" min-height="100%" background-color="#ffffff" color="#11181c" font-family="system-ui" font-size=14 display="flex" flex-direction="column" align-items="center"
 
-style Column
-  width="100%" max-width=960 padding-left=32 padding-right=32 box-sizing="border-box"
+style Wrap
+  width="100%" max-width=1200 padding-left=24 padding-right=24 box-sizing="border-box"
 
-style Nav
-  height=64 align-items="center" justify-content="space-between" width="100%"
+style Header
+  width="100%" background-color="rgba(255, 255, 255, 0.92)" border-bottom-style="solid" border-bottom-width=1 border-bottom-color="#eaecf0" align-items="center" justify-content="center"
 
 style NavLink
-  font-size=14 color="light-dark(#596068, #9aa4ae)" background-color="transparent" border-width=0 padding-left=10 padding-right=10 height=36 align-items="center" justify-content="center" display="flex" flex-direction="row"
+  padding-top=6 padding-bottom=6 padding-left=10 padding-right=10 font-size=14 font-weight=500 color="#11181c" background-color="transparent" border-width=0 display="flex" flex-direction="row" align-items="center"
+
+style Pill
+  height=36 padding-left=16 padding-right=16 border-radius=9999 background-color="#000000" color="#ffffff" font-size=13 font-weight=500 align-items="center" justify-content="center" gap=6 border-width=0 display="flex" flex-direction="row"
+
+style PillLg
+  height=44 padding-left=22 padding-right=22 border-radius=9999 background-color="#000000" color="#ffffff" font-size=14 font-weight=500 align-items="center" justify-content="center" gap=8 border-width=0 display="flex" flex-direction="row"
+
+style PillOutline
+  height=44 padding-left=22 padding-right=22 border-radius=9999 background-color="#ffffff" color="#11181c" font-size=14 font-weight=500 align-items="center" justify-content="center" border-style="solid" border-width=1 border-color="#e1e4e8" display="flex" flex-direction="row"
 
 style Eyebrow
-  font-family="ui-monospace" font-size=12 letter-spacing=0.6 text-transform="uppercase" color="light-dark(#687076, #6e7781)"
+  font-size=12 letter-spacing=0.96 text-transform="uppercase" color="#687076" font-weight=600
 
-style H1
-  font-size=56 font-weight=600 letter-spacing=-1.5 line-height=1.05 color="light-dark(#000020, #ffffff)"
+style H2
+  font-size=40 font-weight=700 letter-spacing=-1.2 line-height=1.1 color="#000000"
 
-style Lead
-  font-size=20 line-height=1.5 color="light-dark(#596068, #9aa4ae)" max-width=640
-
-style Primary
-  height=44 padding-left=20 padding-right=20 border-radius=8 background-color="light-dark(#11181c, #ffffff)" color="light-dark(#ffffff, #0b0f14)" font-size=15 font-weight=500 align-items="center" justify-content="center" gap=10 border-width=0 display="flex" flex-direction="row"
-
-style Outline
-  height=44 padding-left=18 padding-right=18 border-radius=8 border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#ffffff, #0b0f14)" color="light-dark(#11181c, #e6edf3)" font-size=15 font-weight=500 align-items="center" justify-content="center" gap=8 display="flex" flex-direction="row"
+style Body
+  font-size=16 line-height=1.6 color="#596068"
 
 style Card
-  flex=1 min-width=240 border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#f9fafb, #111418)" border-radius=12 padding=24 gap=10
+  flex=1 min-width=260 background-color="#ffffff" border-style="solid" border-width=1 border-color="#e1e4e8" border-radius=12 padding=24 gap=12 box-shadow="0 1px 3px 0 rgba(0, 0, 0, 0.06)"
 
 style CardTitle
   font-size=17 font-weight=600
 
 style CardBody
-  font-size=14 line-height=1.55 color="light-dark(#596068, #9aa4ae)"
+  font-size=14 line-height=1.55 color="#596068"
 
-style Muted
-  font-size=13 color="light-dark(#687076, #6e7781)"
+style Mono
+  font-family="ui-monospace" font-size=12
 
-style Footer
-  padding-top=24 padding-bottom=40 border-top-style="solid" border-top-width=1 border-color="light-dark(#eaecf0, #171b21)" justify-content="space-between" align-items="center" width="100%" gap=16 flex-wrap="wrap"
+style Tag
+  font-size=10 font-weight=600 letter-spacing=0.6 padding-top=1 padding-bottom=1 padding-left=6 padding-right=6 border-radius=4
+
+style Divider
+  width="100%" height=1 background-color="#eaecf0"
 
 component Landing
+  state email = ""
+  state scrollY = 0
   resource release = latestRelease() as shape Release
+  resource notify = notifyLink(email) as shape Notify
 
   action go(url: string)
     openURL(url)
+  action jump(y: number) writes scrollY
+    scrollY = y
+  action typeEmail(v: string) writes email
+    email = v
+  action notifyMe
+    openURL(notify.url)
 
   view
-    scroll width="100%" height="100%"
+    scroll width="100%" height="100%" scrollTop=scrollY testId="page"
       column class=Page
-        column class=Column
-          row class=Nav
+        // ---- header ----------------------------------------------------
+        row class=Header
+          row class=Wrap padding-top=14 padding-bottom=14 align-items="center" gap=24
             row gap=10 align-items="center"
-              Mark(size=28)
-              text "revu" font-size=17 font-weight=600
-            row gap=4 align-items="center"
-              button press=go("https://github.com/gabrieldonadel/revu") class=NavLink
-                text "GitHub"
-              button press=go("https://github.com/gabrieldonadel/revu/releases") class=NavLink
-                text "Releases"
-              button press=go(release.assetUrl) class=Outline height=36 font-size=14 testId="nav-download"
-                text (release.ready ? `Download ${release.tag}` : "Download")
+              Mark(size=28, radius=7)
+              text "Revu" font-weight=600 font-size=16 letter-spacing=-0.15 color="#000000"
+            row gap=4 flex=1 flex-wrap="wrap"
+              button press=jump(1330) class=NavLink testId="nav-how"
+                text "How it works"
+              button press=jump(1860) class=NavLink testId="nav-skills"
+                text "Skills"
+              button press=jump(2250) class=NavLink testId="nav-open-source"
+                text "Open source"
+            button press=go(release.assetUrl) class=Pill testId="nav-download"
+              Icon(name="download", size=14, color="#ffffff")
+              text (release.ready ? `Download ${release.tag}` : "Download")
 
-          column padding-top=72 padding-bottom=56 gap=24 max-width=760
-            text "macOS · menu bar · your own agent" class=Eyebrow
-            text "Review requests, reviewed." class=H1 testId="headline"
-            text "revu lives in your menu bar, tells you when someone asks for your review, and runs an AI review on your own Claude Code or Codex login — reading the pull request through gh, never cloning a thing. You pick what gets posted." class=Lead
-            row gap=12 flex-wrap="wrap" align-items="center"
-              button press=go(release.assetUrl) class=Primary testId="download"
-                DownloadIcon()
-                text (release.ready ? `Download for Mac · ${release.tag}` : "Download for Mac")
-              button press=go("https://github.com/gabrieldonadel/revu#readme") class=Outline
-                text "Read the README"
-            text (release.ready ? `${release.assetName} · ${release.sizeMb} · ${release.published}${release.prerelease ? " · release candidate" : ""} · Apple Silicon, macOS 14+` : "Apple Silicon, macOS 14+") class=Muted testId="release-line"
+        // ---- hero ------------------------------------------------------
+        column width="100%" max-width=1000 padding-top=88 padding-right=24 padding-bottom=56 padding-left=24 box-sizing="border-box" align-items="center" gap=24
+          row align-items="center" gap=8 padding-top=4 padding-bottom=4 padding-left=4 padding-right=12 background-color="#ffffff" border-style="solid" border-width=1 border-color="#e1e4e8" border-radius=9999 font-size=12
+            text "Free" padding-top=3 padding-bottom=3 padding-left=10 padding-right=10 background-color="rgba(0, 114, 222, 0.08)" color="#0072DE" border-radius=9999 font-size=11 font-weight=500
+            text "Open source soon"
+          text "Your review requests, in the menu bar" font-size=68 font-weight=700 line-height=1.05 letter-spacing=-2.4 color="#000000" text-align="center" max-width=900 testId="headline"
+          text "Revu is a macOS menu bar app that tells you when someone requests your review on GitHub. It runs an AI review using the skill file you set for each repository, and you choose which comments get posted." font-size=17 line-height=1.55 color="#596068" text-align="center" max-width=620
+          row gap=10 flex-wrap="wrap" justify-content="center"
+            button press=go(release.assetUrl) class=PillLg testId="download"
+              Icon(name="download", size=15, color="#ffffff")
+              text "Download for macOS"
+            button press=jump(2250) class=PillOutline testId="hero-open-source"
+              text "Get notified when the source is public"
+          when release.ready
+            text `${release.tag} · ${release.sizeMb} · ${release.published}${release.prerelease ? " · release candidate" : ""} · Apple Silicon, macOS 14+` font-size=12 color="#687076" testId="release-line"
 
-          row gap=16 flex-wrap="wrap" padding-bottom=56
-            column class=Card
-              text "Knows when you're asked" class=CardTitle
-              text "Polls GitHub for review requests to you and your teams, shows them with CI state, and posts a notification with Open and Mark read." class=CardBody
-            column class=Card
-              text "Reviews with your agent" class=CardTitle
-              text "One click runs a skill file on your own Claude Code or Codex. The agent reads the diff through gh; nothing is checked out. About two minutes." class=CardBody
-            column class=Card
-              text "You decide what lands" class=CardTitle
-              text "Findings arrive as a review window: pick the comments, choose the verdict, and stage a pending review you finish on GitHub." class=CardBody
+        // ---- the app, on a desktop -------------------------------------
+        column width="100%" max-width=1120 padding-left=24 padding-right=24 padding-bottom=96 box-sizing="border-box"
+          column border-radius=16 overflow="hidden" border-style="solid" border-width=1 border-color="#e1e4e8" background-image="linear-gradient(180deg, #e7ebf0, #d6dce3)" box-shadow="0 8px 30px 0 rgba(0, 0, 0, 0.12)" min-height=600
+            row height=28 background-color="rgba(255, 255, 255, 0.72)" align-items="center" justify-content="flex-end" gap=16 padding-left=14 padding-right=14 font-size=13 font-weight=500
+              row height=22 padding-left=6 padding-right=6 border-radius=5 background-color="rgba(0, 0, 0, 0.12)" align-items="center" gap=4
+                Icon(name="git-pull-request", size=15, color="#11181c")
+                text "5" font-size=12 font-weight=600
+              Icon(name="wifi", size=15, color="#11181c")
+              text "Wed 30 Sep 9:41"
+            row gap=24 padding=24 flex-wrap="wrap-reverse" justify-content="flex-end" align-items="flex-start"
+              ReviewWindowMock()
+              PopoverMock()
 
-          column gap=12 padding-bottom=56
-            text "Requires gh and Claude Code or the Codex CLI, signed in. First open: right-click → Open (the build is not notarized yet). Design decisions live in the repo's llp/." class=Muted
+        // ---- how it works ----------------------------------------------
+        column width="100%" border-top-style="solid" border-top-width=1 border-top-color="#eaecf0" background-color="#f9fafb" align-items="center" testId="how"
+          column class=Wrap padding-top=96 padding-bottom=96 gap=48
+            column gap=12 max-width=640
+              text "How it works" class=Eyebrow
+              text "From request to review without opening a browser tab" class=H2
+            row gap=16 flex-wrap="wrap"
+              column class=Card
+                row justify-content="space-between" align-items="center"
+                  Icon(name="bell", size=20, color="#596068")
+                  text "01" class=Mono color="#687076"
+                text "Get notified" class=CardTitle
+                text "Revu watches for requests sent to you and to your teams. Each one shows the repository, title, and CI status." class=CardBody
+              column class=Card
+                row justify-content="space-between" align-items="center"
+                  Icon(name="sparkles", size=20, color="#596068")
+                  text "02" class=Mono color="#687076"
+                text "Run an AI review" class=CardTitle
+                text "Start a review from the menu bar. Revu picks the skill file mapped to that repository and notifies you when the review finishes." class=CardBody
+              column class=Card
+                row justify-content="space-between" align-items="center"
+                  Icon(name="message-square-check", size=20, color="#596068")
+                  text "03" class=Mono color="#687076"
+                text "Post what you agree with" class=CardTitle
+                text "Findings stay on your machine until you select them. Edit any comment, then post them as a review from your own account." class=CardBody
 
-          row class=Footer
-            text "revu · built with exact2 and an LLP corpus" class=Muted
-            row gap=16
-              button press=go("https://github.com/gabrieldonadel/revu/tree/main/llp") class=NavLink
-                text "LLP"
-              button press=go("https://github.com/ccheever/exact2") class=NavLink
-                text "exact2"
+        // ---- skills ----------------------------------------------------
+        column width="100%" border-top-style="solid" border-top-width=1 border-top-color="#eaecf0" align-items="center" testId="skills"
+          row class=Wrap padding-top=96 padding-bottom=96 gap=56 flex-wrap="wrap" align-items="center"
+            column flex=1 min-width=280 gap=16
+              text "Skills" class=Eyebrow
+              text "One skill file per repository" class=H2
+              text "A skill is a Markdown file that tells the reviewer what your team cares about and what to ignore. Map a skill to a repository or to a pattern like expo/expo-*. Rules are checked in order and the first match is used." class=Body
+              column border-style="solid" border-width=1 border-color="#e1e4e8" border-radius=8 overflow="hidden" font-family="ui-monospace" font-size=13
+                row justify-content="space-between" gap=12 padding-top=10 padding-bottom=10 padding-left=14 padding-right=14 background-color="#f0f1f2"
+                  text "expo/expo"
+                  text "→ expo-sdk.md" color="#687076"
+                row justify-content="space-between" gap=12 padding-top=10 padding-bottom=10 padding-left=14 padding-right=14 border-top-style="solid" border-top-width=1 border-top-color="#eaecf0"
+                  text "expo/eas-cli"
+                  text "→ cli.md" color="#687076"
+                row justify-content="space-between" gap=12 padding-top=10 padding-bottom=10 padding-left=14 padding-right=14 border-top-style="solid" border-top-width=1 border-top-color="#eaecf0"
+                  text "*"
+                  text "→ general.md" color="#687076"
+            column flex=1 min-width=280 border-style="solid" border-width=1 border-color="#e1e4e8" border-radius=12 overflow="hidden" background-color="#fbfcfd" box-shadow="0 5px 10px 0 rgba(0, 0, 0, 0.12)"
+              row padding-top=12 padding-bottom=12 padding-left=16 padding-right=16 border-bottom-style="solid" border-bottom-width=1 border-bottom-color="#eaecf0" background-color="#ffffff" align-items="center" gap=8
+                Icon(name="file-text", size=14, color="#687076")
+                text "expo-sdk.md" font-family="ui-monospace" font-size=13 font-weight=500
+              column padding-top=16 padding-bottom=16 padding-left=20 padding-right=20 font-family="ui-monospace" font-size=13 line-height=1.75
+                text "# Expo SDK review" color="#0072DE" font-weight=600
+                text "Be direct. Only comment when there is a concrete issue."
+                text " "
+                text "## Focus" color="#0072DE" font-weight=600
+                text "- Public API changes need a CHANGELOG.md entry"
+                text "- Native changes must cover both iOS and Android"
+                text "- Routing changes must be tested against route groups" background-color="rgb(255, 244, 194)" line-clamp=2
+                text " "
+                text "## Ignore" color="#0072DE" font-weight=600
+                text "- Formatting (handled by Prettier)"
+                text "- Generated files in build/ and *.d.ts"
 
-// The mark from the app icon: a rounded square with the pull-request glyph.
+        // ---- open source -----------------------------------------------
+        column width="100%" background-color="#11181c" color="#ffffff" align-items="center" testId="open-source"
+          column class=Wrap padding-top=96 padding-bottom=96 align-items="center" gap=20
+            text "Open source" class=Eyebrow color="#c9d1d9"
+            text "Free to use. The source is coming soon." font-size=44 font-weight=700 letter-spacing=-1.3 line-height=1.1 color="#ffffff" text-align="center" max-width=720
+            text "Revu is free to download today. Leave your email and we'll tell you when the repository is public." font-size=16 line-height=1.6 color="#c9d1d9" text-align="center" max-width=560
+            row gap=8 flex-wrap="wrap" justify-content="center" width="100%" max-width=440
+              input value=email input=typeEmail type="email" placeholder="you@company.com" aria-label="Email address" flex=1 min-width=220 height=42 padding-left=16 padding-right=16 border-radius=9999 border-style="solid" border-width=1 border-color="#37414a" background-color="#1b1f23" color="#ffffff" font-size=14 box-sizing="border-box" testId="email"
+              button press=notifyMe height=42 padding-left=20 padding-right=20 border-radius=9999 border-width=0 background-color="#ffffff" color="#11181c" font-size=14 font-weight=500 display="flex" flex-direction="row" align-items="center" justify-content="center" testId="notify"
+                text "Notify me"
+
+        // ---- footer ----------------------------------------------------
+        column width="100%" border-top-style="solid" border-top-width=1 border-top-color="#eaecf0" align-items="center"
+          row class=Wrap padding-top=24 padding-bottom=24 flex-wrap="wrap" gap=16 justify-content="space-between" align-items="center" font-size=13 color="#687076"
+            row align-items="center" gap=8
+              Mark(size=20, radius=5)
+              text "Revu for macOS"
+            row gap=20
+              button press=jump(1330) class=NavLink font-size=13 color="#596068" padding-left=0 padding-right=0
+                text "How it works"
+              button press=jump(1860) class=NavLink font-size=13 color="#596068" padding-left=0 padding-right=0
+                text "Skills"
+              button press=jump(2250) class=NavLink font-size=13 color="#596068" padding-left=0 padding-right=0
+                text "Open source"
+
+// The review window from the design's desktop mock (a still, sample data).
+component ReviewWindowMock
+  view
+    column flex=1 min-width=280 max-width=640 background-color="#ffffff" border-style="solid" border-width=1 border-color="#d7dbdf" border-radius=12 box-shadow="0 30px 60px 0 rgba(0, 0, 0, 0.12)" overflow="hidden" margin-top=72
+      row height=40 border-bottom-style="solid" border-bottom-width=1 border-bottom-color="#e1e4e8" background-color="#f9fafb" align-items="center" padding-left=14 padding-right=14 gap=12
+        row gap=7
+          box width=11 height=11 border-radius=9999 background-color="#ff5f57"
+          box width=11 height=11 border-radius=9999 background-color="#febc2e"
+          box width=11 height=11 border-radius=9999 background-color="#28c840"
+        text "expo/expo #31842" class=Mono color="#687076"
+        box flex=1
+        text "expo-sdk.md" class=Mono color="#687076"
+      column padding=20 gap=12
+        row gap=8 align-items="center"
+          text "BUG" class=Tag background-color="rgb(255, 220, 220)" color="rgb(207, 34, 46)"
+          text "link/href.ts:88" class=Mono color="#596068"
+        text "Params dropped when redirecting into a route group" font-size=16 font-weight=600 letter-spacing=-0.15
+        column border-style="solid" border-width=1 border-color="#eaecf0" border-radius=8 overflow="hidden" font-family="ui-monospace" font-size=12 line-height=1.7
+          row
+            text "86" width=36 text-align="right" padding-right=10 color="#c9d1d9"
+            text "  const segments = stripGroupSegments(pathname);" padding-left=8 white-space="pre" line-clamp=1
+          row background-color="rgb(255, 220, 220)"
+            text "87" width=36 text-align="right" padding-right=10 color="#687076"
+            text "− return { pathname: segments, params };" padding-left=8 white-space="pre" line-clamp=1
+          row background-color="rgb(220, 255, 228)"
+            text "87" width=36 text-align="right" padding-right=10 color="#687076"
+            text "+ return { pathname: segments, params: merged };" padding-left=8 white-space="pre" line-clamp=1
+        column gap=2 border-top-style="solid" border-top-width=1 border-top-color="#eaecf0" padding-top=8
+          row gap=10 align-items="center" padding-top=6 padding-bottom=6 font-size=13
+            column width=16 height=16 border-radius=4 background-color="#11181c" align-items="center" justify-content="center"
+              text "✓" color="#ffffff" font-size=10
+            text "BUG" class=Tag background-color="rgb(255, 220, 220)" color="rgb(207, 34, 46)"
+            text "Params dropped when redirecting into a route group"
+          row gap=10 align-items="center" padding-top=6 padding-bottom=6 font-size=13
+            column width=16 height=16 border-radius=4 background-color="#11181c" align-items="center" justify-content="center"
+              text "✓" color="#ffffff" font-size=10
+            text "RULE" class=Tag background-color="rgb(255, 244, 194)" color="#8a6d00"
+            text "Public Href type changed without a changelog entry"
+          row gap=10 align-items="center" padding-top=6 padding-bottom=6 font-size=13 color="#687076"
+            box width=16 height=16 border-radius=4 border-style="solid" border-width=1 border-color="#d7dbdf" box-sizing="border-box"
+            text "NIT" class=Tag background-color="#f5f5f7" color="#596068"
+            text "Unused import of normalizePath"
+        row justify-content="flex-end"
+          row height=32 padding-left=14 padding-right=14 border-radius=6 background-color="#11181c" color="#ffffff" font-size=13 font-weight=500 align-items="center" gap=8
+            text "Post 2 comments"
+            text "⌘↩" font-family="ui-monospace" font-size=11 color="#c9d1d9"
+
+// The popover from the design's desktop mock (a still, sample data).
+component PopoverMock
+  view
+    column flex-basis=360 flex-grow=0 flex-shrink=1 min-width=280 background-color="rgba(255, 255, 255, 0.96)" border-style="solid" border-width=1 border-color="#e1e4e8" border-radius=12 box-shadow="0 8px 30px 0 rgba(0, 0, 0, 0.12)" overflow="hidden"
+      text "Review requests" padding-top=14 padding-bottom=10 padding-left=16 padding-right=16 font-size=15 font-weight=600
+      box class=Divider
+      text "Requested from you" padding-top=10 padding-bottom=4 padding-left=16 padding-right=16 font-size=11 letter-spacing=0.9 text-transform="uppercase" color="#687076" font-weight=600
+      MockRow(repo="expo/expo #31842", title="[expo-router] Preserve search params on typed redirects", dot="rgb(9, 141, 72)", bg="#f0f1f2")
+      MockRow(repo="expo/eas-cli #2977", title="Add --non-interactive flag to eas update:rollback", dot="rgb(207, 34, 46)", bg="transparent")
+      text "Requested from teams" padding-top=12 padding-bottom=4 padding-left=16 padding-right=16 font-size=11 letter-spacing=0.9 text-transform="uppercase" color="#687076" font-weight=600
+      MockRow(repo="expo/expo #31835 · sdk-team", title="[expo-image] Fix memory leak when recycling views on Android", dot="rgb(255, 138, 76)", bg="transparent")
+      box height=4
+
+component MockRow
+  props
+    repo: string
+    title: string
+    dot: string
+    bg: string
+  view
+    row gap=12 padding-top=10 padding-bottom=10 padding-left=16 padding-right=16 align-items="flex-start" background-color=bg
+      box width=8 height=8 border-radius=9999 margin-top=6 flex-shrink=0 background-color=dot
+      column flex=1 min-width=0 gap=3
+        text repo font-size=12 color="#687076" font-family="ui-monospace"
+        text title font-size=13 font-weight=500 line-height=1.35
+      row height=26 padding-left=8 padding-right=8 border-radius=6 border-style="solid" border-width=1 border-color="#e1e4e8" background-color="#ffffff" font-size=12 font-weight=500 align-items="center" gap=5 flex-shrink=0
+        Icon(name="sparkles", size=13, color="#11181c")
+        text "Review"
+
+// The mark: a rounded square with the pull-request glyph.
 component Mark
   props
     size: number
+    radius: number
   view
-    column width=size height=size border-radius=(size / 4) background-color="light-dark(#11181c, #ffffff)" align-items="center" justify-content="center" flex-shrink=0
-      svg width=(size / 2) height=(size / 2) viewBox="0 0 24 24" fill="none"
-        circle cx=18 cy=18 r=3 stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2
-        circle cx=6 cy=6 r=3 stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2
-        path d="M13 6h3a2 2 0 0 1 2 2v7" stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
-        path d="M6 9v12" stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2 stroke-linecap="round"
+    column width=size height=size border-radius=radius background-color="#11181c" align-items="center" justify-content="center" flex-shrink=0
+      Icon(name="git-pull-request", size=(size * 4 / 7), color="#ffffff")
 
-component DownloadIcon
+// Lucide icons (stroke 2, round caps).
+component Icon
+  props
+    name: string
+    size: number
+    color: string
   view
-    svg width=16 height=16 viewBox="0 0 24 24" fill="none" flex-shrink=0
-      path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
-      path d="m7 10 5 5 5-5" stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
-      path d="M12 15V3" stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2 stroke-linecap="round"
+    svg width=size height=size viewBox="0 0 24 24" fill="none" flex-shrink=0
+      when name == "git-pull-request"
+        circle cx=18 cy=18 r=3 stroke=color stroke-width=2
+        circle cx=6 cy=6 r=3 stroke=color stroke-width=2
+        path d="M13 6h3a2 2 0 0 1 2 2v7" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M6 9v12" stroke=color stroke-width=2 stroke-linecap="round"
+      when name == "download"
+        path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="m7 10 5 5 5-5" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M12 15V3" stroke=color stroke-width=2 stroke-linecap="round"
+      when name == "wifi"
+        path d="M12 20h.01" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M2 8.82a15 15 0 0 1 20 0" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M5 12.859a10 10 0 0 1 14 0" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M8.5 16.429a5 5 0 0 1 7 0" stroke=color stroke-width=2 stroke-linecap="round"
+      when name == "bell"
+        path d="M10.268 21a2 2 0 0 0 3.464 0" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+      when name == "sparkles"
+        path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M20 3v4" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M22 5h-4" stroke=color stroke-width=2 stroke-linecap="round"
+      when name == "message-square-check"
+        path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="m9 10 2 2 4-4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+      when name == "file-text"
+        path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M14 2v4a2 2 0 0 0 2 2h4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M10 9H8" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M16 13H8" stroke=color stroke-width=2 stroke-linecap="round"
+        path d="M16 17H8" stroke=color stroke-width=2 stroke-linecap="round"
