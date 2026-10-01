@@ -27,6 +27,12 @@ treats Chrome as its reference renderer, so the web output is first-class.
 ## Build and host
 
 `bun run landing:web` is the dev loop; `bun run landing:build` writes
-`landing/target/web-dist` (index.html, glue.js, app.wasm). Hosting is undecided:
-EAS Hosting (the exchange endpoint already lives there) or GitHub Pages;
-either serves the static `dist`.
+`landing/target/web-dist` (index.html, glue.js, app.wasm). Hosting is EAS
+Hosting (ruled 2026-09-30): `landing/hosting/` is the EAS project
+(`@gabrieldonadel/revu`, static output); `bun run landing:deploy` exports
+nothing of its own and deploys `web-dist` as the production deployment.
+EAS serves `.wasm` as `application/wasm`, which the page needs.
+
+The release lookup needs the releases to be public (an unauthenticated
+API call on a private repository is a 404; so is downloading its assets) —
+LLP 0007's open question, Gabriel's to settle.

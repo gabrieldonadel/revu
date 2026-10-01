@@ -1,0 +1,6 @@
+{
+  "name": "revu-landing-hosting",
+  "private": true,
+  "description": "EAS Hosting project for revu.expo.app; the site itself is built by `bun run landing:build` into ../target/web-dist (LLP 0008).",
+  "dependencies": { "expo": "~54.0.0" }
+}

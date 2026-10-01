@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "revu",
+    "slug": "revu",
+    "owner": "gabrieldonadel",
+    "web": {
+      "output": "static"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "26a4cf9f-be38-4413-b8a2-db1c7862c56d"
+      }
+    }
+  }
+}

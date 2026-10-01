@@ -12,7 +12,8 @@
     "app:bundle": "git -C ../exact2 checkout -- kernel/build/ 2>/dev/null; cd revu-app && EXACT_APP_DIR=$PWD bun ../../exact2/host/apple/build.mjs revu-app-apple --bundle && cd .. && scripts/icon-catalog.sh \"$(ls -d revu-app/target/clients/*/dev.donadel.revu/macos/revu.app | head -1)\" && codesign --force --deep --sign - --timestamp=none \"$(ls -d revu-app/target/clients/*/dev.donadel.revu/macos/revu.app | head -1)\"",
     "app:open": "open -n \"$(ls -d revu-app/target/clients/*/dev.donadel.revu/macos/revu.app | head -1)\"",
     "landing:web": "bun landing/exact.mjs web",
-    "landing:build": "git -C ../exact2 checkout -- kernel/build/ 2>/dev/null; bun landing/exact.mjs web-build"
+    "landing:build": "git -C ../exact2 checkout -- kernel/build/ 2>/dev/null; bun landing/exact.mjs web-build",
+    "landing:deploy": "bun run landing:build && cd landing/hosting && eas deploy --prod --non-interactive --export-dir ../target/web-dist"
   },
   "devDependencies": {
     "@types/bun": "latest"
