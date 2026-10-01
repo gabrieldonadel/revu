@@ -69,7 +69,10 @@ async function exchangeCode(code: string, verifier: string, redirectUri: string)
 }
 
 function oauthPage(message: string, ok: boolean): string {
-  return `<!doctype html><meta charset="utf-8"><title>revu</title><body style="font-family:-apple-system,system-ui;background:#f9fafb;color:#11181c;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="background:#fff;border:1px solid #e1e4e8;border-radius:12px;padding:32px 28px;max-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.12)"><div style="width:40px;height:40px;border-radius:10px;background:${ok ? '#11181c' : 'rgb(207,34,46)'};margin-bottom:16px"></div><h1 style="font-size:18px;margin:0 0 8px">${ok ? 'Connected to GitHub' : 'Sign-in did not finish'}</h1><p style="font-size:14px;line-height:1.5;color:#596068;margin:0">${message.replace(/</g, '&lt;')}</p></div>`;
+  // The mark (the app icon): a rounded square with Lucide's git-pull-request.
+  const mark = `<div style="width:48px;height:48px;border-radius:12px;background:${ok ? '#11181c' : 'rgb(207,34,46)'};display:flex;align-items:center;justify-content:center;margin-bottom:20px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/></svg></div>`;
+  const safe = message.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>revu</title><body style="font-family:-apple-system,system-ui;background:#f9fafb;color:#11181c;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><div style="background:#fff;border:1px solid #e1e4e8;border-radius:12px;padding:32px 28px;max-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.12)">${mark}<h1 style="font-size:18px;margin:0 0 8px;letter-spacing:-.01em">${ok ? 'Connected to GitHub' : 'Sign-in did not finish'}</h1><p style="font-size:14px;line-height:1.5;color:#596068;margin:0">${safe}</p></div>`;
 }
 
 function broadcast(event: Event): void {
