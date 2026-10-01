@@ -764,8 +764,13 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
       elapsed: elapsed(String(body.startedAt ?? ''), body.finishedAt ? String(body.finishedAt) : null, now),
       startedAt: String(body.startedAt ?? ''),
       finishedAt: body.finishedAt ? String(body.finishedAt) : '',
-      log: lines.slice(-3),
-      calls: lines.filter((l) => /\bgh (api|pr|repo|search)\b/.test(l)).length,
+      // The whole transcript, newest last; the window scrolls it. Each line
+      // carries the kind the runner tagged it with (`thought:`, `say:`), else tool.
+      log: lines.slice(-200).map((l, index) => {
+        const m = /^(\d\d:\d\d:\d\d) (thought|say): (.*)$/.exec(l);
+        return m ? { index, kind: m[2]!, text: m[3]! } : { index, kind: 'tool', text: l };
+      }),
+      calls: lines.filter((l) => /\bgh (api|pr|repo|search)\b/.test(l) && !/ (thought|say): /.test(l)).length,
       lastOutputAt: String(body.lastOutputAt ?? body.startedAt ?? ''),
       repo: String(body.request?.repo ?? ''),
       number: Number(body.request?.number ?? 0),

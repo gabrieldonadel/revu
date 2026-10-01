@@ -94,7 +94,7 @@ export const claudeRunner: Runner = {
     const bin = find('claude');
     if (!bin) throw new Error('Claude Code is not installed (no `claude` on PATH)');
     const args = [
-      '-p', '--verbose', '--output-format', 'stream-json',
+      '-p', '--verbose', '--output-format', 'stream-json', '--include-partial-messages',
       ...(model ? ['--model', model] : []),
       '--permission-mode', 'dontAsk',
       // No Read/Grep/Glob: there is nothing local to read; gh is the only
@@ -113,13 +113,38 @@ export const claudeRunner: Runner = {
     let result = '';
     let stderr = '';
     const errs = pump(proc.stderr, (line) => { stderr += `${line}\n`; });
+    // Thinking and prose arrive as deltas (partial messages); each is
+    // buffered per block and flushed as one line when the block ends, so the
+    // transcript reads as paragraphs, not fragments. Lines are prefixed with a
+    // kind the app styles: `thought:` (the model's reasoning), `say:` (its
+    // prose), and tool calls as before.
+    const blocks = new Map<number, { kind: 'thought' | 'say'; text: string }>();
+    const flush = (index: number) => {
+      const b = blocks.get(index);
+      if (!b) return;
+      blocks.delete(index);
+      const text = b.text.replace(/\s+/g, ' ').trim();
+      if (text) onChunk(`${nowStamp()} ${b.kind}: ${text}\n`);
+    };
     await pump(proc.stdout, (line) => {
       let event: Record<string, any>;
       try { event = JSON.parse(line); } catch { return; }
+      if (event.type === 'stream_event') {
+        const e = event.event ?? {};
+        if (e.type === 'content_block_start') {
+          const kind = e.content_block?.type === 'thinking' ? 'thought' : e.content_block?.type === 'text' ? 'say' : null;
+          if (kind) blocks.set(Number(e.index), { kind, text: '' });
+        } else if (e.type === 'content_block_delta') {
+          const b = blocks.get(Number(e.index));
+          if (b) b.text += String(e.delta?.thinking ?? e.delta?.text ?? '');
+        } else if (e.type === 'content_block_stop') {
+          flush(Number(e.index));
+        }
+        return;
+      }
       if (event.type === 'assistant') {
         for (const block of event.message?.content ?? []) {
           if (block.type === 'tool_use') onChunk(`${nowStamp()} ${describeTool(String(block.name), block.input ?? {})}\n`);
-          else if (block.type === 'text' && String(block.text).trim()) onChunk(`${nowStamp()} ${String(block.text).trim().split('\n')[0]}\n`);
         }
       } else if (event.type === 'result') {
         result = String(event.result ?? '');
