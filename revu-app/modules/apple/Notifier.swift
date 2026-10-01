@@ -640,16 +640,24 @@ final class SecondaryWindow: NSObject {
             close.action = #selector(hide)
         }
         NotificationCenter.default.addObserver(self, selector: #selector(closed(_:)), name: NSWindow.willCloseNotification, object: w)
+        NotificationCenter.default.addObserver(self, selector: #selector(becameKey(_:)), name: NSWindow.didBecomeKeyNotification, object: w)
         show()
     }
 
+    /// A window in front means the popover goes away: it is a transient
+    /// surface, and the two of them at once read as clutter (Gabriel,
+    /// 2026-10-01). Focus moving between the app's own windows does not
+    /// deactivate the app, so `hidesOnDeactivate` alone never fires here.
     func show() {
         guard let w = window else { return }
+        MenuBar.shared?.hide()
         w.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func hide() { window?.orderOut(nil) }
+
+    @objc private func becameKey(_ note: Notification) { MenuBar.shared?.hide() }
 
     @objc private func closed(_ note: Notification) {
         if MenuBar.windows[key] === self { MenuBar.windows.removeValue(forKey: key) }
