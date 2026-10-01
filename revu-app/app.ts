@@ -698,6 +698,18 @@ function chosenFor(jobId: string, comments: Json[]): Set<number> {
   return set;
 }
 
+/** The user's edited wording, per job and comment; empty = the agent's. */
+const edits = new Map<string, Map<number, string>>();
+
+async function editComment(jobId: string, index: number, text: string): Promise<Result<'editComment'>> {
+  if (jobId) {
+    const m = edits.get(jobId) ?? new Map<number, string>();
+    if (text === '') m.delete(index); else m.set(index, text);
+    edits.set(jobId, m);
+  }
+  return { stamp: ++stamp };
+}
+
 async function toggleComment(jobId: string, index: number): Promise<Result<'toggleComment'>> {
   const set = chosen.get(jobId);
   if (set) {
@@ -710,7 +722,8 @@ async function postComments(jobId: string, verdict: string): Promise<Result<'pos
   const set = chosen.get(jobId);
   if (!jobId || !set || set.size === 0) return { stamp: ++stamp, ok: false, url: '', count: 0, error: 'Choose at least one comment.' };
   try {
-    const res = await sidecar(`/reviews/${encodeURIComponent(jobId)}/post`, { method: 'POST', body: JSON.stringify({ comments: [...set].sort((a, b) => a - b), verdict: verdict || undefined }) });
+    const edited = Object.fromEntries([...(edits.get(jobId) ?? new Map<number, string>())].map(([i, t]) => [String(i), t]));
+    const res = await sidecar(`/reviews/${encodeURIComponent(jobId)}/post`, { method: 'POST', body: JSON.stringify({ comments: [...set].sort((a, b) => a - b), verdict: verdict || undefined, edits: edited }) });
     const body = (await res.json()) as Json;
     if (!res.ok) return { stamp: ++stamp, ok: false, url: '', count: 0, error: String(body.error ?? `sidecar answered ${res.status}`) };
     return { stamp: ++stamp, ok: true, url: String(body.url ?? ''), count: Number(body.count ?? 0), error: '' };
@@ -729,7 +742,7 @@ function overall(summary: string): string {
 
 const emptyJob: Job = { ready: false, id: '', status: '', skill: DEFAULT_SKILL, agent: DEFAULT_AGENT, step: 0, progress: 0, elapsed: '0:00', startedAt: '', finishedAt: '', lastOutputAt: '', repo: '', number: 0, title: '', log: [], calls: 0, summary: '', verdict: '', hasResult: false, comments: [], chosenCount: 0, posted: false, postedUrl: '', postedCount: 0, error: '' };
 
-async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: number, _posted: number): Promise<Job> {
+async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: number, _posted: number, _edited: number): Promise<Job> {
   if (!jobId) return emptyJob;
   try {
     const res = await sidecar(`/reviews/${encodeURIComponent(jobId)}`);
@@ -746,11 +759,13 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
     const rawComments = ((result?.comments ?? []) as Json[]);
     const set = status === 'done' && result ? chosenFor(jobId, rawComments) : new Set<number>();
     const hunks = ((body.hunks ?? []) as Json[][]);
+    const edited = edits.get(jobId) ?? new Map<number, string>();
     const comments: Comment[] = rawComments.map((c, index) => {
-      const text = String(c.body ?? '').trim();
-      const title = text.split('\n')[0]?.slice(0, 140) ?? '';
+      const original = String(c.body ?? '').trim();
+      const text = edited.get(index) ?? original;
+      const title = original.split('\n')[0]?.slice(0, 140) ?? '';
       const hunk: HunkLine[] = (hunks[index] ?? []).map((l) => ({ kind: String(l.kind ?? 'context'), oldNo: Number(l.old ?? -1), newNo: Number(l.new ?? -1), text: String(l.text ?? ''), target: Boolean(l.target) }));
-      return { index, severity: String(c.severity ?? 'suggestion'), path: String(c.path ?? ''), line: Number(c.line ?? 0), title, body: text, chosen: set.has(index), hunk };
+      return { index, severity: String(c.severity ?? 'suggestion'), path: String(c.path ?? ''), line: Number(c.line ?? 0), title, body: text, edited: edited.has(index), chosen: set.has(index), hunk };
     });
     const posted = (body.posted ?? null) as Json | null;
     return {
@@ -970,7 +985,8 @@ const sources: Sources = {
   currentSession: (_, store, storage) => currentSession(store, storage),
   reviewRequests: ([login, pollMs, epoch, actionsStamp], store, storage) => reviewRequests(store, storage, String(login ?? ''), Number(pollMs), Number(epoch), Number(actionsStamp)),
   prDetail: ([owner, name, number, rulesStamp], store, storage) => prDetail(store, storage, String(owner ?? ''), String(name ?? ''), String(number ?? ''), Number(rulesStamp)),
-  reviewJob: ([jobId, tick, epoch, toggled, posted]) => reviewJob(String(jobId ?? ''), Number(tick), Number(epoch), Number(toggled), Number(posted)),
+  reviewJob: ([jobId, tick, epoch, toggled, posted, edited]) => reviewJob(String(jobId ?? ''), Number(tick), Number(epoch), Number(toggled), Number(posted), Number(edited)),
+  editComment: ([jobId, index, text]) => editComment(String(jobId ?? ''), Number(index), String(text ?? '')),
   agentSettings: ([stamp], _store, storage) => agentSettings(storage, Number(stamp)),
   setAgent: ([name], _store, storage) => setAgent(storage, String(name ?? '')),
   setModel: ([model], _store, storage) => setModel(storage, String(model ?? '')),

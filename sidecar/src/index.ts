@@ -317,9 +317,9 @@ const server = Bun.serve<undefined>({
       if (!token) return json({ error: 'not authenticated' }, 401);
       const job = getJob(decodeURIComponent(post[1]!));
       if (!job) return json({ error: 'not found' }, 404);
-      const body = (await request.json().catch(() => ({}))) as { comments?: number[]; verdict?: string };
+      const body = (await request.json().catch(() => ({}))) as { comments?: number[]; verdict?: string; edits?: Record<string, string> };
       try {
-        const posted = await postReview(job, body.comments ?? [], token, body.verdict);
+        const posted = await postReview(job, body.comments ?? [], token, body.verdict, body.edits ?? {});
         broadcast({ type: 'review', job });
         return json(posted);
       } catch (error) {

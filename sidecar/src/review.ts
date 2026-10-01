@@ -300,10 +300,13 @@ async function rightSideLines(request: ReviewRequest, token: string): Promise<Ma
  *  post-review.ts does: `line_content` wins over the number when it is
  *  found; a comment whose line is not in the diff is dropped, not guessed.
  *  Returns the review's id and URL. */
-export async function postReview(job: ReviewJob, chosen: number[], token: string, verdictOverride?: string): Promise<{ reviewId: number; url: string; count: number; dropped: string[] }> {
+export async function postReview(job: ReviewJob, chosen: number[], token: string, verdictOverride?: string, edits: Record<string, string> = {}): Promise<{ reviewId: number; url: string; count: number; dropped: string[] }> {
   if (!job.result) throw new Error('nothing to post: the review has no result');
   if (verdictOverride === 'APPROVE' || verdictOverride === 'REQUEST_CHANGES' || verdictOverride === 'COMMENT') job.result.verdict = verdictOverride;
-  const wanted = job.result.comments.filter((_, i) => chosen.includes(i));
+  // The user's edited wording replaces the agent's for the comments they changed.
+  const wanted = job.result.comments
+    .map((c, i) => (typeof edits[String(i)] === 'string' && edits[String(i)]!.trim() ? { ...c, body: edits[String(i)]!.trim() } : c))
+    .filter((_, i) => chosen.includes(i));
   if (wanted.length === 0) throw new Error('no comments chosen');
   const diff = await rightSideLines(job.request, token);
   const dropped: string[] = [];

@@ -110,6 +110,7 @@ shape Comment
   line: number
   title: string
   body: string
+  edited: bool
   chosen: bool
   hunk: list<HunkLine>
 
@@ -363,6 +364,8 @@ component Revu
   state modelDraft = ""
   state secMs = 0
   state doneAnnounced = ""
+  state editingComment = -1
+  state commentDraft = ""
   state verdict = ""
   state browserOpened = ""
 
@@ -380,7 +383,7 @@ component Revu
   // pollMs moves once a minute (and on Refresh), not every clock tick.
   resource inbox = reviewRequests(session.login, pollMs, time.epochAtZero, actions.stamp) as shape Inbox
   resource detail = prDetail(top(nav).params.owner, top(nav).params.name, top(nav).params.number, rulesStamp) as shape PrDetail
-  resource job = reviewJob(jobId, tick, time.epochAtZero, toggledStamp, postedStamp) as shape Job
+  resource job = reviewJob(jobId, tick, time.epochAtZero, toggledStamp, postedStamp, editedStamp) as shape Job
   // The elapsed time ticks every second while a review runs (design 1d).
   resource elapsedNow = elapsedSince(job.startedAt, job.finishedAt, job.lastOutputAt, secMs) as shape Elapsed
   // The local agent that runs reviews (LLP 0004): Settings ▸ Model.
@@ -406,6 +409,7 @@ component Revu
   mutation opened as shape Opened
   mutation agentSet as shape AgentSet
   mutation toggled as shape Toggled
+  mutation commentEdit as shape Toggled
   mutation postResult as shape Posted
   mutation reviewOpened as shape Opened
   mutation doneNotice as shape Opened
@@ -416,6 +420,7 @@ component Revu
   derive jobId = role.kind == "review" ? role.arg : match started { case some(s) => s.id, case none => "" }
   derive agentStamp = match agentSet { case some(a) => a.stamp, case none => 0 }
   derive toggledStamp = match toggled { case some(t) => t.stamp, case none => 0 }
+  derive editedStamp = match commentEdit { case some(t) => t.stamp, case none => 0 }
   derive postedStamp = match postResult { case some(p) => p.stamp, case none => 0 }
   derive posting = pending(postResult)
   derive rulesStamp = match rules { case some(r) => r.stamp, case none => 0 }
@@ -491,10 +496,26 @@ component Revu
   action cancelReview writes cancelled, nav
     send cancelled = cancelReview(jobId)
     nav = back(nav)
-  action selectFinding(i: number) writes selectedFinding
+  action selectFinding(i: number) writes selectedFinding, editingComment
     selectedFinding = i
+    editingComment = -1
   action toggleComment(i: number) writes toggled
     send toggled = toggleComment(jobId, i)
+  // Editing a comment: the draft lives in the window; each keystroke is
+  // kept by the app (per job and comment) so a switch of finding or a Post
+  // sees the latest wording.
+  action editComment(i: number, current: string) writes editingComment, commentDraft
+    editingComment = i
+    commentDraft = current
+  action changeComment(v: string) writes commentDraft, commentEdit
+    commentDraft = v
+    send commentEdit = editComment(jobId, editingComment, v)
+  action doneEditing writes editingComment
+    editingComment = -1
+  action resetComment(i: number) writes commentEdit, commentDraft, editingComment
+    commentDraft = ""
+    editingComment = -1
+    send commentEdit = editComment(jobId, i, "")
   action postComments writes postResult
     send postResult = postComments(jobId, verdict)
   action setVerdict(v: string) writes verdict
@@ -960,9 +981,26 @@ component Revu
                                   text (l.newNo == -1 ? `${l.oldNo}` : `${l.newNo}`) width=40 text-align="right" padding-right=10 color="light-dark(#c9d1d9, #484f58)" line-height=1.7 flex-shrink=0
                                   text `${l.kind == "add" ? "+" : l.kind == "del" ? "−" : " "} ${l.text}` white-space="pre" line-clamp=1 line-height=1.7 padding-left=8 flex=1 min-width=0
                         column gap=6
-                          text "Comment to post" class=Tertiary
-                          column border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" border-radius=6 padding=12
-                            text c.body markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#11181c, #e6edf3)"
+                          row justify-content="space-between" align-items="center"
+                            row gap=8 align-items="center"
+                              text "Comment to post" class=Tertiary
+                              when c.edited
+                                text "EDITED" class=Tag background-color="light-dark(rgb(255, 244, 194), rgba(255, 210, 44, 0.16))" color="light-dark(#8a6d00, #ffd36b)"
+                            row gap=4
+                              when c.edited and editingComment != c.index
+                                button press=resetComment(c.index) class=Ghost height=24 font-size=12 padding-left=8 padding-right=8 testId="reset-comment"
+                                  text "Reset to the agent's"
+                              when editingComment == c.index
+                                button press=doneEditing class=Ghost height=24 font-size=12 padding-left=8 padding-right=8 testId="done-editing"
+                                  text "Done"
+                              else
+                                button press=editComment(c.index, c.body) class=Ghost height=24 font-size=12 padding-left=8 padding-right=8 disabled=job.posted testId="edit-comment"
+                                  text "Edit"
+                          when editingComment == c.index
+                            textarea value=commentDraft input=changeComment aria-label="Comment to post" width="100%" min-height=160 box-sizing="border-box" padding=12 border-style="solid" border-width=1 border-color="light-dark(#11181c, #e6edf3)" border-radius=6 background-color="light-dark(#ffffff, #0b0f14)" color="light-dark(#11181c, #e6edf3)" font-size=13 line-height="20px" font-family="system-ui" testId="comment-editor"
+                          else
+                            button press=editComment(c.index, c.body) disabled=job.posted display="flex" flex-direction="column" align-items="stretch" text-align="left" border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" border-radius=6 padding=12 background-color="transparent" width="100%" box-sizing="border-box" testId="comment-preview"
+                              text c.body markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#11181c, #e6edf3)"
                   when length(job.comments) == 0
                     text "Nothing to show." class=Tertiary padding=20
                 row padding=12 padding-left=24 padding-right=24 gap=10 align-items="center" background-color="light-dark(#f9fafb, #111418)" border-top-style="solid" border-top-width=1 border-color="light-dark(#e1e4e8, #1f242c)" flex-shrink=0
