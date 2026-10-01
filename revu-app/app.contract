@@ -103,6 +103,14 @@ shape Started
   id: string
   error: string
 
+shape Prior
+  exists: bool
+  id: string
+  status: string
+  findings: number
+  finished: string
+  verdict: string
+
 shape Comment
   index: number
   severity: string
@@ -364,6 +372,7 @@ component Revu
   state modelDraft = ""
   state secMs = 0
   state doneAnnounced = ""
+  state viewingJob = ""
   state editingComment = -1
   state commentDraft = ""
   state verdict = ""
@@ -384,6 +393,8 @@ component Revu
   resource inbox = reviewRequests(session.login, pollMs, time.epochAtZero, actions.stamp) as shape Inbox
   resource detail = prDetail(top(nav).params.owner, top(nav).params.name, top(nav).params.number, rulesStamp) as shape PrDetail
   resource job = reviewJob(jobId, tick, time.epochAtZero, toggledStamp, postedStamp, editedStamp) as shape Job
+  // An earlier review of the pull request on screen, if the sidecar has one.
+  resource prior = priorReview(`${prOwner}/${prName}`, detail.number, startedStamp, tick / 6) as shape Prior
   // The elapsed time ticks every second while a review runs (design 1d).
   resource elapsedNow = elapsedSince(job.startedAt, job.finishedAt, job.lastOutputAt, secMs) as shape Elapsed
   // The local agent that runs reviews (LLP 0004): Settings ▸ Model.
@@ -417,7 +428,12 @@ component Revu
   derive signedIn = session.signedIn
   derive granted = match grant { case some(g) => g.status == "ok", case none => false }
   // The popover's job is the one it started; a review window's is its argument.
-  derive jobId = role.kind == "review" ? role.arg : match started { case some(s) => s.id, case none => "" }
+  // The job on screen: a review window's argument; else the one the user
+  // chose to view (an earlier review); else the one this session started.
+  derive startedId = match started { case some(s) => s.id, case none => "" }
+  derive startedStamp = match started { case some(s) => s.stamp, case none => 0 }
+  derive jobId = role.kind == "review" ? role.arg : viewingJob != "" ? viewingJob : startedId
+  // Re-ask for the prior review every 30 s (a cheap loopback list).
   derive agentStamp = match agentSet { case some(a) => a.stamp, case none => 0 }
   derive toggledStamp = match toggled { case some(t) => t.stamp, case none => 0 }
   derive editedStamp = match commentEdit { case some(t) => t.stamp, case none => 0 }
@@ -471,8 +487,9 @@ component Revu
   action setFilter(f: string) writes filter
     filter = f
   // Opening a request reads it; the banner's "Mark read" does the same.
-  action openPr(id: string, owner: string, name: string, number: string) writes nav, seen, selectedFinding
+  action openPr(id: string, owner: string, name: string, number: string) writes nav, seen, selectedFinding, viewingJob
     selectedFinding = 0
+    viewingJob = ""
     send seen = markSeen(id)
     nav = push(nav, path("pr", owner, name, number))
   action goBack writes nav
@@ -489,10 +506,19 @@ component Revu
       nav = push(nav, "/settings")
   action setSettingsTab(t: string) writes settingsTab
     settingsTab = t
-  action runReview writes started, nav, selectedFinding
+  action runReview writes started, nav, selectedFinding, viewingJob
     selectedFinding = 0
+    viewingJob = ""
     send started = startReview(detail.id, detail.skill)
     nav = push(nav, path("review", prOwner, prName, prNumber))
+  // An earlier review: show it — in its window when done, else its progress.
+  action showPrior writes viewingJob, selectedFinding, reviewOpened, nav
+    selectedFinding = 0
+    viewingJob = prior.id
+    if prior.status == "done"
+      send reviewOpened = openWindow("review", prior.id)
+    else
+      nav = push(nav, path("review", prOwner, prName, prNumber))
   action cancelReview writes cancelled, nav
     send cancelled = cancelReview(jobId)
     nav = back(nav)
@@ -834,10 +860,26 @@ component Revu
                   else
                     text detail.body markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#596068, #9aa4ae)" testId="pr-body"
           box class=Divider
+          when prior.exists and prior.status == "done"
+            row padding-top=8 padding-left=16 padding-right=16 gap=6 align-items="center"
+              column width=14 height=14 border-radius=9999 background-color="light-dark(rgb(9, 141, 72), #4ade80)" align-items="center" justify-content="center"
+                text "✓" color="#fff" font-size=9 font-weight=700 line-height="9px"
+              text `Reviewed at ${prior.finished} · ${prior.findings} ${prior.findings == 1 ? "finding" : "findings"} · suggested ${prior.verdict == "APPROVE" ? "approve" : prior.verdict == "REQUEST_CHANGES" ? "request changes" : "comment"}` class=Tertiary line-clamp=1 testId="prior-line"
           row padding=12 padding-left=16 padding-right=16 gap=8
-            button press=runReview class=PrimarySm flex=1 disabled=(not detail.ready or not sidecar.reachable) opacity=(detail.ready ? 1 : 0.5) testId="run-review"
-              Icon(name="sparkles", size=14, color="light-dark(#ffffff, #0b0f14)")
-              text (sidecar.reachable ? "Run AI review" : "Sidecar offline")
+            when prior.exists and prior.status == "done"
+              button press=showPrior class=PrimarySm flex=1 disabled=(not detail.ready) testId="show-review"
+                Icon(name="sparkles", size=14, color="light-dark(#ffffff, #0b0f14)")
+                text "Show review"
+              button press=runReview class=Outline disabled=(not detail.ready or not sidecar.reachable) testId="run-again"
+                text "Run again"
+            when prior.exists and prior.status != "done"
+              button press=showPrior class=PrimarySm flex=1 disabled=(not detail.ready) testId="show-running"
+                box width=12 height=12 border-radius=9999 border-style="solid" border-width=2 border-color="light-dark(#596068, #9aa4ae)" border-top-color="light-dark(#ffffff, #0b0f14)" box-sizing="border-box" animation="spin 900ms linear infinite"
+                text "Review running…"
+            when not prior.exists
+              button press=runReview class=PrimarySm flex=1 disabled=(not detail.ready or not sidecar.reachable) opacity=(detail.ready ? 1 : 0.5) testId="run-review"
+                Icon(name="sparkles", size=14, color="light-dark(#ffffff, #0b0f14)")
+                text (sidecar.reachable ? "Run AI review" : "Sidecar offline")
             button press=openLink(`${detail.url}/files`) class=Outline disabled=(not detail.ready) opacity=(detail.ready ? 1 : 0.5) testId="open-diff"
               text "Open diff"
 

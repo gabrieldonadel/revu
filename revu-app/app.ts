@@ -814,6 +814,33 @@ function elapsedSince(startedAt: string, finishedAt: string, lastOutputAt: strin
   return { text: elapsed(startedAt, finishedAt || null, now), quiet, quietText: `${Math.floor(quiet / 60)}:${String(quiet % 60).padStart(2, '0')}` };
 }
 
+/** The newest review of this pull request the sidecar knows (it keeps
+ *  finished ones on disk), so a second "Run AI review" shows the result
+ *  instead of paying for another run (Gabriel, 2026-10-01). */
+async function priorReview(repo: string, number: number, _startedStamp: number, _tick: number): Promise<Result<'priorReview'>> {
+  const none = { exists: false, id: '', status: '', findings: 0, finished: '', verdict: '' };
+  if (!repo || !number) return none;
+  try {
+    const res = await sidecar('/reviews');
+    if (!res.ok) return none;
+    const jobs = ((await res.json()) as Json[]).filter((j) => String(j.request?.repo) === repo && Number(j.request?.number) === number && j.status !== 'failed');
+    jobs.sort((a, b) => String(b.startedAt).localeCompare(String(a.startedAt)));
+    const j = jobs[0];
+    if (!j) return none;
+    const result = (j.result ?? null) as Json | null;
+    return {
+      exists: true,
+      id: String(j.id),
+      status: String(j.status),
+      findings: Array.isArray(result?.comments) ? result!.comments.length : 0,
+      finished: j.finishedAt ? clock(Date.parse(String(j.finishedAt))) : '',
+      verdict: String(result?.verdict ?? ''),
+    };
+  } catch {
+    return none;
+  }
+}
+
 async function cancelReview(jobId: string): Promise<Result<'cancelReview'>> {
   if (!jobId) return { stamp: ++stamp, ok: false };
   try {
@@ -1005,6 +1032,7 @@ const sources: Sources = {
   markSeen: ([id], _store, storage) => markSeen(storage, String(id)),
   startReview: ([id, skill], store, storage) => startReview(store, storage, String(id ?? ''), String(skill ?? DEFAULT_SKILL)),
   cancelReview: ([jobId]) => cancelReview(String(jobId ?? '')),
+  priorReview: ([repo, number, startedStamp, tick]) => priorReview(String(repo ?? ''), Number(number), Number(startedStamp), Number(tick)),
   elapsedSince: ([startedAt, finishedAt, lastOutputAt, nowMs]) => elapsedSince(String(startedAt ?? ''), String(finishedAt ?? ''), String(lastOutputAt ?? ''), Number(nowMs)),
   addRule: ([pattern, skill], _store, storage) => addRule(storage, String(pattern ?? ''), String(skill ?? '')),
   removeRule: ([pattern], _store, storage) => removeRule(storage, String(pattern ?? '')),
