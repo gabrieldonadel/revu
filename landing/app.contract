@@ -1,0 +1,133 @@
+// revu's landing page (LLP 0008): a placeholder until the design arrives —
+// the mark, the one-line pitch, what the app does, and the current download.
+// Built with exact2 for the web; the same page runs as a Mac window.
+// Tokens: the Expo design system, light-dark() throughout (as the app).
+
+shape Release
+  ready: bool
+  tag: string
+  name: string
+  url: string
+  assetUrl: string
+  assetName: string
+  sizeMb: string
+  published: string
+  notes: string
+  prerelease: bool
+
+style Page
+  width="100%" min-height="100%" background-color="light-dark(#ffffff, #0b0f14)" color="light-dark(#11181c, #e6edf3)" font-family="system-ui" display="flex" flex-direction="column" align-items="center"
+
+style Column
+  width="100%" max-width=960 padding-left=32 padding-right=32 box-sizing="border-box"
+
+style Nav
+  height=64 align-items="center" justify-content="space-between" width="100%"
+
+style NavLink
+  font-size=14 color="light-dark(#596068, #9aa4ae)" background-color="transparent" border-width=0 padding-left=10 padding-right=10 height=36 align-items="center" justify-content="center" display="flex" flex-direction="row"
+
+style Eyebrow
+  font-family="ui-monospace" font-size=12 letter-spacing=0.6 text-transform="uppercase" color="light-dark(#687076, #6e7781)"
+
+style H1
+  font-size=56 font-weight=600 letter-spacing=-1.5 line-height=1.05 color="light-dark(#000020, #ffffff)"
+
+style Lead
+  font-size=20 line-height=1.5 color="light-dark(#596068, #9aa4ae)" max-width=640
+
+style Primary
+  height=44 padding-left=20 padding-right=20 border-radius=8 background-color="light-dark(#11181c, #ffffff)" color="light-dark(#ffffff, #0b0f14)" font-size=15 font-weight=500 align-items="center" justify-content="center" gap=10 border-width=0 display="flex" flex-direction="row"
+
+style Outline
+  height=44 padding-left=18 padding-right=18 border-radius=8 border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#ffffff, #0b0f14)" color="light-dark(#11181c, #e6edf3)" font-size=15 font-weight=500 align-items="center" justify-content="center" gap=8 display="flex" flex-direction="row"
+
+style Card
+  flex=1 min-width=240 border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#f9fafb, #111418)" border-radius=12 padding=24 gap=10
+
+style CardTitle
+  font-size=17 font-weight=600
+
+style CardBody
+  font-size=14 line-height=1.55 color="light-dark(#596068, #9aa4ae)"
+
+style Muted
+  font-size=13 color="light-dark(#687076, #6e7781)"
+
+style Footer
+  padding-top=24 padding-bottom=40 border-top-style="solid" border-top-width=1 border-color="light-dark(#eaecf0, #171b21)" justify-content="space-between" align-items="center" width="100%" gap=16 flex-wrap="wrap"
+
+component Landing
+  resource release = latestRelease() as shape Release
+
+  action go(url: string)
+    openURL(url)
+
+  view
+    scroll width="100%" height="100%"
+      column class=Page
+        column class=Column
+          row class=Nav
+            row gap=10 align-items="center"
+              Mark(size=28)
+              text "revu" font-size=17 font-weight=600
+            row gap=4 align-items="center"
+              button press=go("https://github.com/gabrieldonadel/revu") class=NavLink
+                text "GitHub"
+              button press=go("https://github.com/gabrieldonadel/revu/releases") class=NavLink
+                text "Releases"
+              button press=go(release.assetUrl) class=Outline height=36 font-size=14 testId="nav-download"
+                text (release.ready ? `Download ${release.tag}` : "Download")
+
+          column padding-top=72 padding-bottom=56 gap=24 max-width=760
+            text "macOS · menu bar · your own agent" class=Eyebrow
+            text "Review requests, reviewed." class=H1 testId="headline"
+            text "revu lives in your menu bar, tells you when someone asks for your review, and runs an AI review on your own Claude Code or Codex login — reading the pull request through gh, never cloning a thing. You pick what gets posted." class=Lead
+            row gap=12 flex-wrap="wrap" align-items="center"
+              button press=go(release.assetUrl) class=Primary testId="download"
+                DownloadIcon()
+                text (release.ready ? `Download for Mac · ${release.tag}` : "Download for Mac")
+              button press=go("https://github.com/gabrieldonadel/revu#readme") class=Outline
+                text "Read the README"
+            text (release.ready ? `${release.assetName} · ${release.sizeMb} · ${release.published}${release.prerelease ? " · release candidate" : ""} · Apple Silicon, macOS 14+` : "Apple Silicon, macOS 14+") class=Muted testId="release-line"
+
+          row gap=16 flex-wrap="wrap" padding-bottom=56
+            column class=Card
+              text "Knows when you're asked" class=CardTitle
+              text "Polls GitHub for review requests to you and your teams, shows them with CI state, and posts a notification with Open and Mark read." class=CardBody
+            column class=Card
+              text "Reviews with your agent" class=CardTitle
+              text "One click runs a skill file on your own Claude Code or Codex. The agent reads the diff through gh; nothing is checked out. About two minutes." class=CardBody
+            column class=Card
+              text "You decide what lands" class=CardTitle
+              text "Findings arrive as a review window: pick the comments, choose the verdict, and stage a pending review you finish on GitHub." class=CardBody
+
+          column gap=12 padding-bottom=56
+            text "Requires gh and Claude Code or the Codex CLI, signed in. First open: right-click → Open (the build is not notarized yet). Design decisions live in the repo's llp/." class=Muted
+
+          row class=Footer
+            text "revu · built with exact2 and an LLP corpus" class=Muted
+            row gap=16
+              button press=go("https://github.com/gabrieldonadel/revu/tree/main/llp") class=NavLink
+                text "LLP"
+              button press=go("https://github.com/ccheever/exact2") class=NavLink
+                text "exact2"
+
+// The mark from the app icon: a rounded square with the pull-request glyph.
+component Mark
+  props
+    size: number
+  view
+    column width=size height=size border-radius=(size / 4) background-color="light-dark(#11181c, #ffffff)" align-items="center" justify-content="center" flex-shrink=0
+      svg width=(size / 2) height=(size / 2) viewBox="0 0 24 24" fill="none"
+        circle cx=18 cy=18 r=3 stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2
+        circle cx=6 cy=6 r=3 stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2
+        path d="M13 6h3a2 2 0 0 1 2 2v7" stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+        path d="M6 9v12" stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2 stroke-linecap="round"
+
+component DownloadIcon
+  view
+    svg width=16 height=16 viewBox="0 0 24 24" fill="none" flex-shrink=0
+      path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+      path d="m7 10 5 5 5-5" stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
+      path d="M12 15V3" stroke="light-dark(#ffffff, #0b0f14)" stroke-width=2 stroke-linecap="round"

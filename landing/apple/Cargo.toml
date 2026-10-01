@@ -1,0 +1,18 @@
+[package]
+name = "landing-apple"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+build = "build.rs"
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+exact-logic = { path = "../../../exact2/logic" }
+exact-apple = { path = "../../../exact2/host/apple" }
+exact-js = { path = "../../../exact2/js" }
+
+[build-dependencies]
+exact-js-bake = { path = "../../../exact2/js/bake" }

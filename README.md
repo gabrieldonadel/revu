@@ -10,6 +10,9 @@ A macOS app for reviewing GitHub pull requests, built on
   Menu Bar" (LLP 0005). Notifications and the menu bar item come from the
   app's own native module (`revu-app/modules/`, LLP 0003, LLP 0006): the
   bundled app lives in the menu bar and its window is the popover.
+- **`landing/`** — the website, a second exact2 app built for the web
+  (`bun run landing:web` for the dev loop, `landing:build` for `landing/target/web-dist`).
+  Placeholder page until the design lands (LLP 0008).
 - **`sidecar/`** — Bun daemon that runs AI reviews on your local agent CLI (Claude Code or Codex, Settings ▸ Model; LLP 0004). It never checks your code out: the agent reads the PR through `gh`. Default skill: `skills/deep-code-review/`.
 
 ## Install (release)

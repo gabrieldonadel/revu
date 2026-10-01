@@ -5,3 +5,5 @@ dist
 .env.*
 !.env.example
 .DS_Store
+landing/target/
+revu-app/target/
