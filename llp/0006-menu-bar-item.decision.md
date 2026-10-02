@@ -16,13 +16,16 @@ LLP 0003) owns an `NSStatusItem`, and turns the host's one window into the
 popover under it:
 
 - The Dock icon goes: `NSApp.setActivationPolicy(.accessory)` at module load.
-- The window keeps its class (ExactMac's `ExactWindow`) but loses its title
-  bar and buttons (`.titled` + `.fullSizeContentView`, transparent, hidden
-  controls), floats, follows the active Space, is 380 × 600 like the design's
-  popover, and is placed under the item on the item's screen.
-- A click on the item shows or hides it; it hides when the app deactivates
-  (a click anywhere else). It is **hidden, never closed**: ExactMac ends the
-  session when its window closes.
+- The popover is a real **`NSPopover`** (revised 2026-10-02, Gabriel: "just
+  like we do in Orbit" — expo/orbit's `PopoverManager`): transient, 380 × 600,
+  anchored to the status item's button on its bottom edge, with the
+  system's arrow, vibrancy and corners. Its content view controller holds
+  ExactMac's own `ExactView`, moved out of the host's first window; that
+  window stays alive, ordered out and not closable (closing it would end
+  the session). The view pauses its rasters without a window and resumes
+  in the popover's (`ExactViewMac.viewDidMoveToWindow`).
+- A click on the item shows or closes it; being transient it closes itself
+  when the user clicks anywhere else.
 - A right-click gives **Open revu**, **Settings…** and **Quit revu**.
 - The app drives the item over `native.call({ op: "tray", count, busy })`
   from a `trayState` resource that follows the inbox's total and whether a
@@ -79,6 +82,8 @@ windows only), and the runner pauses nothing on that fact anyway.
   window and Dock icon: the item needs a bundle, as notifications do.
 - Under the agent driver no item is made; the window stays a window, so
   drives are unchanged.
-- The window frame autosave is switched off; the popover's place is the
-  item's.
+- The host window's frame autosave is switched off; the popover's place is
+  the item's. The first design (a restyled borderless window placed under
+  the item) is superseded: it had no arrow, no vibrancy, and needed its own
+  placement and hide-on-deactivate logic.
 - ⌘Q works while the popover is key; otherwise the item's menu quits.

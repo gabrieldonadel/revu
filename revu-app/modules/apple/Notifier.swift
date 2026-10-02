@@ -328,10 +328,14 @@ import ObjectiveC
 
 /// The menu bar item and the popover it opens (design 1b: the pull-request
 /// icon with the pending count; 1d: a spinner while a review runs). The
-/// popover is the host's own window, restyled: no title bar or buttons,
-/// floating, hidden when the app deactivates, placed under the item. It is
-/// never closed — closing ends the session (ExactMac's `windowWillClose`).
-final class MenuBar: NSObject {
+/// popover is a real `NSPopover` (as Orbit's, Gabriel 2026-10-02): the
+/// system's arrow, vibrancy and corners, transient — it closes itself when
+/// the user clicks elsewhere. Its content is the host's own `ExactView`,
+/// moved out of ExactMac's window (which stays alive and ordered out,
+/// never closed: closing ends the session) into a view controller the
+/// popover owns. The view pauses its rasters while it has no window and
+/// resumes when it lands in the popover's (ExactViewMac.viewDidMoveToWindow).
+final class MenuBar: NSObject, NSPopoverDelegate {
     static var shared: MenuBar?
     /// The role (and its argument) the next module instance — the next window's session — takes.
     static var pendingRole: String?
@@ -350,12 +354,19 @@ final class MenuBar: NSObject {
 
     private let item: NSStatusItem
     private var spinner: NSProgressIndicator?
-    private(set) weak var popover: NSWindow?
+    /// ExactMac's first window: the session's home, kept off screen.
+    private(set) weak var hostWindow: NSWindow?
+    /// The view the popover shows — ExactMac's, adopted once.
+    private weak var hostView: NSView?
+    private let popover = NSPopover()
+    private let controller = NSViewController()
     private let icon: NSImage
     private var count = 0
     private var busy = false
-    private static let width: CGFloat = 380
-    private static let height: CGFloat = 600
+    private static let size = NSSize(width: 380, height: 600)
+
+    /// What `SecondaryWindow.adopt` must skip: the host window, which is never a secondary.
+    var popoverWindow: NSWindow? { hostWindow }
 
     override init() {
         icon = MenuBar.pullRequestIcon()
@@ -363,6 +374,12 @@ final class MenuBar: NSObject {
         super.init()
         NSApp.setActivationPolicy(.accessory)
         MenuBar.keepRunningWithoutWindows()
+        controller.view = NSView(frame: NSRect(origin: .zero, size: MenuBar.size))
+        popover.contentViewController = controller
+        popover.contentSize = MenuBar.size
+        popover.behavior = .transient
+        popover.animates = true
+        popover.delegate = self
         if let button = item.button {
             button.image = icon
             button.imagePosition = .imageLeading
@@ -372,18 +389,18 @@ final class MenuBar: NSObject {
             button.toolTip = "revu — review requests"
         }
         // The host's window exists by now (the module loads after first pixel);
-        // adopt it once the current turn of the run loop is done with it, and
-        // show it once the item has a place in the bar.
+        // adopt its view once the current turn of the run loop is done with it,
+        // and open the popover as the app's first screen.
         DispatchQueue.main.async { [weak self] in
-            self?.adoptWindow()
+            self?.adoptHostView()
             self?.show(attempt: 0)
         }
     }
 
     /// ExactMac's delegate quits when its last window closes, and AppKit
-    /// runs that check when the last visible window is *hidden* too — which
-    /// is what a popover does. An accessory app lives in the bar; it quits
-    /// from the item's menu or ⌘Q. So the delegate's answer becomes "no".
+    /// runs that check when the last visible window is *hidden* too. An
+    /// accessory app lives in the bar; it quits from the item's menu or ⌘Q.
+    /// So the delegate's answer becomes "no".
     private static func keepRunningWithoutWindows() {
         guard let delegate = NSApp.delegate else { return }
         let sel = #selector(NSApplicationDelegate.applicationShouldTerminateAfterLastWindowClosed(_:))
@@ -398,59 +415,45 @@ final class MenuBar: NSObject {
         }
     }
 
-    private func adoptWindow() {
-        guard popover == nil else { return }
-        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil && !($0 is NSPanel) }) ?? NSApp.windows.first(where: { $0.contentView != nil && !($0 is NSPanel) }) else { return }
-        popover = window
+    /// Takes the host window's content view into the popover's controller.
+    /// The window stays (ordered out, not closable by the user); its
+    /// autosaved frame is switched off so it never comes back on its own.
+    private func adoptHostView() {
+        guard hostView == nil else { return }
+        guard let window = NSApp.windows.first(where: { $0.contentView != nil && !($0 is NSPanel) }) else { return }
+        guard let view = window.contentView else { return }
+        hostWindow = window
         window.setFrameAutosaveName("")
-        window.styleMask = [.titled, .fullSizeContentView]
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.toolbar = nil
-        for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { window.standardWindowButton(kind)?.isHidden = true }
-        window.isMovable = false
-        window.isMovableByWindowBackground = false
-        window.level = .floating
-        window.hidesOnDeactivate = true
-        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .ignoresCycle]
-        window.hasShadow = true
-        window.setContentSize(NSSize(width: MenuBar.width, height: MenuBar.height))
-    }
-
-    /// Under the item, centred on it, on the item's screen. False until the
-    /// item has a window in the bar.
-    @discardableResult
-    private func place() -> Bool {
-        guard let window = popover else { return false }
-        let size = window.frame.size
-        guard let button = item.button, let buttonWindow = button.window, let screen = buttonWindow.screen ?? NSScreen.main else { return false }
-        let anchor = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
-        // Before the bar has laid the item out its window sits at the origin;
-        // an anchor outside the menu bar band is not the item's place yet.
-        guard anchor.minY > screen.frame.maxY - 60 else { return false }
-        var x = anchor.midX - size.width / 2
-        let visible = screen.visibleFrame
-        x = min(max(x, visible.minX + 8), visible.maxX - size.width - 8)
-        let y = anchor.minY - size.height - 6
-        window.setFrameOrigin(NSPoint(x: x.rounded(), y: max(y, visible.minY).rounded()))
-        return true
+        window.orderOut(nil)
+        window.styleMask.remove(.closable)
+        window.collectionBehavior = [.ignoresCycle, .transient]
+        view.removeFromSuperview()
+        view.frame = controller.view.bounds
+        view.autoresizingMask = [.width, .height]
+        controller.view.addSubview(view)
+        hostView = view
     }
 
     func show(attempt: Int = 0) {
-        adoptWindow()
-        guard let window = popover else { return }
-        if !place(), attempt < 60 {
-            // The bar has not placed the item yet; try again shortly.
+        adoptHostView()
+        guard hostView != nil, let button = item.button else { return }
+        // The bar may not have placed the item yet (its window is at the origin
+        // until then); try again shortly rather than anchoring to nowhere.
+        if (button.window?.frame.minY ?? 0) < (NSScreen.main?.frame.maxY ?? 0) - 60, attempt < 60 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.show(attempt: attempt + 1) }
             return
         }
-        window.makeKeyAndOrderFront(nil)
+        if popover.isShown { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
         NSApp.activate(ignoringOtherApps: true)
-        item.button?.highlight(true)
     }
 
     func hide() {
-        popover?.orderOut(nil)
+        if popover.isShown { popover.close() }
+    }
+
+    func popoverDidClose(_ notification: Notification) {
         item.button?.highlight(false)
     }
 
@@ -466,7 +469,7 @@ final class MenuBar: NSObject {
             item.menu = nil
             return
         }
-        if let window = popover, window.isVisible, window.isKeyWindow { hide() } else { show() }
+        if popover.isShown { hide() } else { show() }
     }
 
     @objc private func openFromMenu() { show() }
@@ -684,8 +687,8 @@ final class SecondaryWindow: NSObject {
     private func adopt() {
         guard window == nil else { return }
         let taken = Set(MenuBar.windows.values.compactMap { $0.window }.map { ObjectIdentifier($0) })
-        let popover = MenuBar.shared?.popover
-        guard let w = NSApp.windows.last(where: { $0.contentView != nil && !($0 is NSPanel) && $0 !== popover && !taken.contains(ObjectIdentifier($0)) }) else { return }
+        let host = MenuBar.shared?.popoverWindow
+        guard let w = NSApp.windows.last(where: { $0.contentView != nil && !($0 is NSPanel) && $0 !== host && !taken.contains(ObjectIdentifier($0)) }) else { return }
         window = w
         w.setFrameAutosaveName("")
         w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
