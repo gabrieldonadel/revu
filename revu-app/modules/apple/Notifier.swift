@@ -432,8 +432,33 @@ final class MenuBar: NSObject, NSPopoverDelegate {
         view.removeFromSuperview()
         view.frame = controller.view.bounds
         view.autoresizingMask = [.width, .height]
+        // Nothing opaque between the popover's vibrancy and the page: the
+        // page itself paints no background (PopoverSurface in the contract).
+        controller.view.wantsLayer = true
+        controller.view.layer?.backgroundColor = NSColor.clear.cgColor
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+        view.layer?.isOpaque = false
         controller.view.addSubview(view)
         hostView = view
+        // The presenter's own scroll view paints a solid page under the nodes
+        // (PresenterMac: drawsBackground, white); it must not, or the vibrancy
+        // never shows. Found by type, since the view's internals are the host's.
+        MenuBar.clearPageBackground(in: view)
+    }
+
+    /// Every scroll view and clip view under `root` stops painting a background.
+    private static func clearPageBackground(in root: NSView) {
+        var stack: [NSView] = [root]
+        while let v = stack.popLast() {
+            if let scroll = v as? NSScrollView {
+                scroll.drawsBackground = false
+                scroll.backgroundColor = .clear
+                scroll.contentView.drawsBackground = false
+                scroll.contentView.backgroundColor = .clear
+            }
+            stack.append(contentsOf: v.subviews)
+        }
     }
 
     /// When the popover last closed (process clock): a transient popover
