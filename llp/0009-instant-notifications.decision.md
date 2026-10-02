@@ -25,8 +25,12 @@ The pieces:
   token → GitHub login. The Mac registers through its sidecar
   (`POST /push/register` → the exchange's `POST /devices`) sending its GitHub
   token once as proof; the exchange asks GitHub who it is and keeps only the
-  login. Storage is Upstash Redis when `REDIS_URL`/`REDIS_TOKEN` are set,
-  else process memory (development).
+  login. Storage is **Supabase** (Postgres over PostgREST, the service-role
+  key, table `revu_devices`, `exchange/supabase/schema.sql`) when
+  `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` are set — Gabriel's choice over
+  Upstash, 2026-10-02 — else process memory (development; the app
+  re-registers at every launch, so a redeploy only loses idle Macs until
+  they next start).
 - **An APNs sender** (`exchange/lib/apns.ts`): HTTP/2 to Apple with an
   ES256 provider token from `APNS_KEY` / `APNS_KEY_ID` / `APPLE_TEAM_ID`,
   topic `dev.donadel.revu`. A `410`/`BadDeviceToken` drops the device.

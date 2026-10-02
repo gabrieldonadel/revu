@@ -4,6 +4,7 @@
 // names what does not. Guarded by the webhook secret so it is not public.
 import { createHmac } from 'node:crypto';
 import { send } from '../../lib/apns';
+import { registryKind } from '../../lib/devices';
 
 export async function GET(request: Request): Promise<Response> {
   const key = new URL(request.url).searchParams.get('key') ?? '';
@@ -21,7 +22,7 @@ export async function GET(request: Request): Promise<Response> {
   }
   try {
     const r = await send('0'.repeat(64), { title: 'revu', body: 'transport check' });
-    return Response.json({ ok: r.reason === 'BadDeviceToken', apple: r });
+    return Response.json({ ok: r.reason === 'BadDeviceToken', apple: r, registry: registryKind() });
   } catch (e) {
     return Response.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 502 });
   }

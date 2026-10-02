@@ -1,8 +1,12 @@
-// Device registrations for pushes (LLP 0009): APNs token → GitHub login,
-// kept in the deployment's SQLite-less world as a JSON blob in an EAS KV?
-// Not yet: EAS Hosting routes are stateless, so the registry lives in
-// Upstash Redis when REDIS_URL/REDIS_TOKEN are set, else in process memory
-// (fine for one deployment instance during development).
+// Device registrations for pushes (LLP 0009): APNs token → GitHub login.
+// EAS Hosting routes are stateless, so the registry lives in Supabase
+// (Postgres over PostgREST, service-role key) when SUPABASE_URL and
+// SUPABASE_SERVICE_ROLE_KEY are set, else in process memory (development;
+// forgotten on every deploy — the app re-registers at each launch anyway).
+//
+// Table (exchange/supabase/schema.sql):
+//   revu_devices(token text primary key, login text not null, bundle text,
+//                updated_at timestamptz) + index on lower(login)
 export interface Device {
   token: string;
   login: string; // GitHub login the device belongs to
@@ -12,38 +16,52 @@ export interface Device {
 
 const memory = new Map<string, Device>();
 
-async function redis(command: unknown[]): Promise<unknown> {
-  const url = process.env.REDIS_URL;
-  const auth = process.env.REDIS_TOKEN;
-  if (!url || !auth) return undefined;
-  const res = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' }, body: JSON.stringify(command) });
-  const body = (await res.json()) as { result?: unknown; error?: string };
-  if (body.error) throw new Error(body.error);
-  return body.result;
+function supabase(): { url: string; key: string } | null {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return url && key ? { url: url.replace(/\/$/, ''), key } : null;
+}
+
+async function rest(path: string, init: RequestInit & { prefer?: string } = {}): Promise<unknown> {
+  const sb = supabase();
+  if (!sb) return undefined;
+  const res = await fetch(`${sb.url}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: sb.key,
+      Authorization: `Bearer ${sb.key}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(init.prefer ? { Prefer: init.prefer } : {}),
+      ...(init.headers as Record<string, string> | undefined),
+    },
+  });
+  if (!res.ok) throw new Error(`supabase ${init.method ?? 'GET'} ${path}: ${res.status} ${(await res.text()).slice(0, 200)}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
 export async function register(device: Device): Promise<void> {
   memory.set(device.token, device);
-  await redis(['HSET', 'revu:devices', device.token, JSON.stringify(device)]);
-  await redis(['SADD', `revu:login:${device.login.toLowerCase()}`, device.token]);
+  await rest('revu_devices?on_conflict=token', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: JSON.stringify([{ token: device.token, login: device.login, bundle: device.bundle, updated_at: device.updatedAt }]),
+  });
 }
 
 export async function forget(token: string): Promise<void> {
-  const d = memory.get(token);
   memory.delete(token);
-  await redis(['HDEL', 'revu:devices', token]);
-  if (d) await redis(['SREM', `revu:login:${d.login.toLowerCase()}`, token]);
+  await rest(`revu_devices?token=eq.${encodeURIComponent(token)}`, { method: 'DELETE', prefer: 'return=minimal' });
 }
 
 export async function devicesFor(login: string): Promise<Device[]> {
-  const fromRedis = (await redis(['SMEMBERS', `revu:login:${login.toLowerCase()}`])) as string[] | undefined;
-  if (fromRedis) {
-    const out: Device[] = [];
-    for (const token of fromRedis) {
-      const raw = (await redis(['HGET', 'revu:devices', token])) as string | null;
-      if (raw) out.push(JSON.parse(raw) as Device);
-    }
-    return out;
-  }
+  const rows = (await rest(`revu_devices?select=token,login,bundle,updated_at&login=ilike.${encodeURIComponent(login)}`)) as Array<Record<string, string>> | undefined;
+  if (rows) return rows.map((r) => ({ token: r.token!, login: r.login!, bundle: r.bundle ?? 'dev.donadel.revu', updatedAt: r.updated_at ?? '' }));
   return [...memory.values()].filter((d) => d.login.toLowerCase() === login.toLowerCase());
+}
+
+/** Which store is live, for the diagnostics route. */
+export function registryKind(): string {
+  return supabase() ? 'supabase' : 'memory';
 }
