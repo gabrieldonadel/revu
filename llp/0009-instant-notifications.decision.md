@@ -54,10 +54,16 @@ The pieces:
    opens. Developer site → Identifiers (App ID `dev.donadel.revu`, enable
    Push Notifications) → Profiles → "+" → Developer ID → macOS.
 2. ~~The **Team ID**.~~
-3. An **APNs auth key** (`.p8`) and its **Key ID**, stored as EAS sensitive
-   variables `APNS_KEY`, `APNS_KEY_ID`, `APPLE_TEAM_ID`.
-4. The **GitHub App**'s webhook secret (`GITHUB_WEBHOOK_SECRET`); the App ID
-   and private key are not needed for webhooks alone.
+3. ~~An **APNs auth key**~~ — in EAS 2026-10-02 (`APNS_KEY`, `APNS_KEY_ID`
+   YFLB85X9N5, `APPLE_TEAM_ID`). Verified from the deployment: `GET
+   /apns/check?key=<webhook secret>` sends to an all-zero token and Apple
+   answers `BadDeviceToken`, which proves the provider token, the topic and
+   the HTTP/2 transport (Bun's own `fetch` cannot speak HTTP/2 to APNs; the
+   EAS runtime's can).
+4. ~~The **GitHub App**'s webhook secret~~ — in EAS 2026-10-02. A signed
+   `ping` answers `pong`; a signed `review_requested` for a login answers
+   with the device count. The GitHub App must then be **installed** on the
+   repositories whose requests should push.
 
 Team review requests (`requested_team`) are not fanned out yet: the webhook
 has no team membership; a later revision can ask the GitHub App's
