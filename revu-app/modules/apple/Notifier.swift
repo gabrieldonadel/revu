@@ -572,12 +572,26 @@ final class MenuBar: NSObject {
 /// callbacks are the application delegate's, which is ExactMac's; the two
 /// selectors are added to its class at load.
 enum RemotePush {
+    /// Whether this build carries `aps-environment`. The task API answers
+    /// for the kernel's view; the code-signing information reads the signed
+    /// entitlement blob itself. Either saying yes is enough to ask APNs; the
+    /// OS still decides at registration.
     static var entitled: Bool {
-        guard let task = SecTaskCreateFromSelf(nil) else { return false }
-        return SecTaskCopyValueForEntitlement(task, "aps-environment" as CFString, nil) != nil
+        let key = "com.apple.developer.aps-environment"
+        if let task = SecTaskCreateFromSelf(nil), SecTaskCopyValueForEntitlement(task, key as CFString, nil) != nil { return true }
+        var code: SecCode?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return false }
+        var staticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return false }
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let dict = info as? [String: Any],
+              let ents = dict[kSecCodeInfoEntitlementsDict as String] as? [String: Any] else { return false }
+        return ents[key] != nil
     }
 
     static func registerIfEntitled() {
+        NSLog("revu: push — entitled=%d delegate=%@", entitled ? 1 : 0, NSApp.delegate.map { String(describing: type(of: $0)) } ?? "nil")
         guard entitled, let delegate = NSApp.delegate else { return }
         let cls: AnyClass = type(of: delegate)
         let got: @convention(block) (AnyObject, NSApplication, Data) -> Void = { _, _, data in
@@ -593,8 +607,9 @@ enum RemotePush {
         let received: @convention(block) (AnyObject, NSApplication, [String: Any]) -> Void = { _, _, _ in
             Notifier.pushTokenOwner?.context.changed("pushed")
         }
-        class_addMethod(cls, #selector(NSApplicationDelegate.application(_:didReceiveRemoteNotification:)), imp_implementationWithBlock(received), "v@:@@")
+        let addedReceive = class_addMethod(cls, #selector(NSApplicationDelegate.application(_:didReceiveRemoteNotification:)), imp_implementationWithBlock(received), "v@:@@")
         NSApp.registerForRemoteNotifications()
+        NSLog("revu: push — registerForRemoteNotifications called (receive hook added: %d, isRegistered: %d)", addedReceive ? 1 : 0, NSApp.isRegisteredForRemoteNotifications ? 1 : 0)
     }
 }
 
