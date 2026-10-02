@@ -43,9 +43,17 @@ The pieces:
 
 ## What it needs from Gabriel
 
-1. A **Developer ID Application** certificate on the build Mac (push
-   entitlements need a real signature; this also unlocks notarization).
-2. The **Team ID**.
+1. ~~A **Developer ID Application** certificate on the build Mac~~ — done
+   2026-10-02 (team 3VRHBFMBRL), and the **Team ID** with it.
+1b. A **Developer ID provisioning profile** for `dev.donadel.revu` with the
+   Push Notifications capability, embedded as
+   `Contents/embedded.provisionprofile` (`REVU_PROVISION_PROFILE` for
+   `package.sh --release`). Found the hard way: `aps-environment` is a
+   provisioned entitlement; a Developer ID signature alone makes the kernel
+   refuse the launch (POSIX 163), while the same app without the entitlement
+   opens. Developer site → Identifiers (App ID `dev.donadel.revu`, enable
+   Push Notifications) → Profiles → "+" → Developer ID → macOS.
+2. ~~The **Team ID**.~~
 3. An **APNs auth key** (`.p8`) and its **Key ID**, stored as EAS sensitive
    variables `APNS_KEY`, `APNS_KEY_ID`, `APPLE_TEAM_ID`.
 4. The **GitHub App**'s webhook secret (`GITHUB_WEBHOOK_SECRET`); the App ID

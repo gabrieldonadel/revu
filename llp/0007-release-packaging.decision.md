@@ -21,11 +21,19 @@ A release is `revu-<version>-macos-<arch>.zip` on GitHub Releases, made by
   binary with `~/.local/bin`, `~/.bun/bin` and Homebrew on its PATH (the
   agent CLIs and `gh` live there) and logs to `~/Library/Logs/revu-sidecar.log`;
   it stops it when the app quits. A sidecar started by hand is left alone.
-- **Ad-hoc signed.** There is no Developer ID on the build Mac. Gatekeeper
-  shows "unidentified developer" on first open: right-click → Open once, or
-  `xattr -d com.apple.quarantine revu.app`. Notarization is a later step
-  with an Apple developer account; then the token moves back to the
-  Keychain (LLP 0002 r3's flag).
+- **Signed and notarized with `--release`** (2026-10-02): a Developer ID
+  Application identity is on the build Mac (team 3VRHBFMBRL); every dylib,
+  the sidecar and the bundle are signed inside out with the hardened
+  runtime and a timestamp; the app carries `aps-environment: production`
+  (LLP 0009) and the sidecar — a compiled Bun binary with a JIT — carries
+  `allow-jit`, `allow-unsigned-executable-memory` and
+  `disable-library-validation`. Notarization goes through the `revu-notary`
+  keychain profile (`xcrun notarytool store-credentials revu-notary …`, set
+  once from an App Store Connect API key), the ticket is stapled, and
+  `spctl` confirms Gatekeeper's verdict before the zip is kept. Without
+  `--release` the build stays ad-hoc (right-click → Open on first launch).
+  With a signed build the token can move back to the Keychain (LLP 0002
+  r3's flag).
 - Apple Silicon only (`uname -m` names the zip); macOS 14+.
 
 ## What a user needs
