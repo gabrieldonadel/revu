@@ -385,7 +385,9 @@ final class MenuBar: NSObject, NSPopoverDelegate {
             button.imagePosition = .imageLeading
             button.target = self
             button.action = #selector(clicked(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            // On mouse-down: a transient popover shown on the mouse-up would be
+            // closed by that same up event counting as a click outside it.
+            button.sendAction(on: [.leftMouseDown, .rightMouseUp])
             button.toolTip = "revu — review requests"
         }
         // The host's window exists by now (the module loads after first pixel);
@@ -434,6 +436,11 @@ final class MenuBar: NSObject, NSPopoverDelegate {
         hostView = view
     }
 
+    /// When the popover last closed (process clock): a transient popover
+    /// closes on the mouse-down of the very click on the item whose mouse-up
+    /// then reaches `clicked`; that click must not reopen it.
+    private var closedAt: TimeInterval = 0
+
     func show(attempt: Int = 0) {
         adoptHostView()
         guard hostView != nil, let button = item.button else { return }
@@ -444,9 +451,13 @@ final class MenuBar: NSObject, NSPopoverDelegate {
             return
         }
         if popover.isShown { return }
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        // Active first: a transient popover shown by an inactive app can be
+        // ordered out again at once by AppKit's activation handling.
         NSApp.activate(ignoringOtherApps: true)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
+        hostView?.needsDisplay = true
+        button.highlight(true)
     }
 
     func hide() {
@@ -454,7 +465,19 @@ final class MenuBar: NSObject, NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
+        closedAt = ProcessInfo.processInfo.systemUptime
         item.button?.highlight(false)
+    }
+
+    /// The item's left click toggles. If the popover closed within the last
+    /// quarter second, this click is the one that closed it: leave it closed.
+    private func toggle() {
+        if popover.isShown { hide(); return }
+        // A transient popover closes on the mouse-down that reaches this
+        // handler when the user clicks the item to dismiss it; that same
+        // click must not reopen it.
+        if ProcessInfo.processInfo.systemUptime - closedAt < 0.25 { return }
+        show()
     }
 
     @objc private func clicked(_ sender: Any?) {
@@ -469,7 +492,7 @@ final class MenuBar: NSObject, NSPopoverDelegate {
             item.menu = nil
             return
         }
-        if popover.isShown { hide() } else { show() }
+        toggle()
     }
 
     @objc private func openFromMenu() { show() }
@@ -594,7 +617,6 @@ enum RemotePush {
     }
 
     static func registerIfEntitled() {
-        NSLog("revu: push — entitled=%d delegate=%@", entitled ? 1 : 0, NSApp.delegate.map { String(describing: type(of: $0)) } ?? "nil")
         guard entitled, let delegate = NSApp.delegate else { return }
         let cls: AnyClass = type(of: delegate)
         let got: @convention(block) (AnyObject, NSApplication, Data) -> Void = { _, _, data in
@@ -610,9 +632,8 @@ enum RemotePush {
         let received: @convention(block) (AnyObject, NSApplication, [String: Any]) -> Void = { _, _, _ in
             Notifier.pushTokenOwner?.context.changed("pushed")
         }
-        let addedReceive = class_addMethod(cls, #selector(NSApplicationDelegate.application(_:didReceiveRemoteNotification:)), imp_implementationWithBlock(received), "v@:@@")
+        class_addMethod(cls, #selector(NSApplicationDelegate.application(_:didReceiveRemoteNotification:)), imp_implementationWithBlock(received), "v@:@@")
         NSApp.registerForRemoteNotifications()
-        NSLog("revu: push — registerForRemoteNotifications called (receive hook added: %d, isRegistered: %d)", addedReceive ? 1 : 0, NSApp.isRegisteredForRemoteNotifications ? 1 : 0)
     }
 }
 
