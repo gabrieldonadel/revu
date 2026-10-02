@@ -84,7 +84,7 @@ component Landing
         row class=Header
           row class=Wrap padding-top=14 padding-bottom=14 align-items="center" gap=24
             row gap=10 align-items="center"
-              Mark(size=28, radius=7)
+              Mark(size=28, radius=6)
               text "Revu" font-weight=600 font-size=16 letter-spacing=-0.15 color="#000000"
             row gap=4 flex=1 flex-wrap="wrap"
               button press=jump(1330) class=NavLink testId="nav-how"
@@ -203,7 +203,7 @@ component Landing
         column width="100%" border-top-style="solid" border-top-width=1 border-top-color="#eaecf0" align-items="center"
           row class=Wrap padding-top=24 padding-bottom=24 flex-wrap="wrap" gap=16 justify-content="space-between" align-items="center" font-size=13 color="#687076"
             row align-items="center" gap=8
-              Mark(size=20, radius=5)
+              Mark(size=20, radius=4)
               text "Revu for macOS"
             row gap=20
               button press=jump(1330) class=NavLink font-size=13 color="#596068" padding-left=0 padding-right=0
@@ -296,7 +296,7 @@ component Mark
     radius: number
   view
     column width=size height=size border-radius=radius background-color="#11181c" align-items="center" justify-content="center" flex-shrink=0
-      Icon(name="git-pull-request", size=(size * 4 / 7), color="#ffffff")
+      Icon(name="git-pull-request", size=(size * 8 / 15), color="#ffffff")
 
 // Lucide icons (stroke 2, round caps).
 component Icon

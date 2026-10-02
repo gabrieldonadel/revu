@@ -713,8 +713,8 @@ component Revu
       // ---- 1a Onboarding — connect GitHub ------------------------------
       when not signedIn
         column padding-top=32 padding-right=28 padding-bottom=24 padding-left=28 gap=24 testId="onboarding"
-          column width=48 height=48 border-radius=12 background-color="light-dark(#11181c, #ffffff)" align-items="center" justify-content="center"
-            Icon(name="git-pull-request", size=24, color="light-dark(#ffffff, #0b0f14)")
+          column width=48 height=48 border-radius=11 background-color="light-dark(#11181c, #ffffff)" align-items="center" justify-content="center"
+            Icon(name="git-pull-request", size=25, color="light-dark(#ffffff, #0b0f14)")
           column gap=8
             text "Connect your GitHub account" font-size=20 font-weight=600 letter-spacing=-0.25 testId="title"
             text "revu watches for review requests addressed to you and your teams, and runs AI reviews using the skill file mapped to each repository." font-size=14 line-height=1.5 color="light-dark(#596068, #9aa4ae)"

@@ -571,12 +571,14 @@ final class MenuBar: NSObject, NSPopoverDelegate {
         }
     }
 
-    /// Lucide's `git-pull-request`, 16 pt, as a template image.
+    /// Lucide's `git-pull-request` as the menu bar glyph: 15 pt, stroke 2,
+    /// as the design's menu bar row (3a) draws it; a template image so the
+    /// bar tints it for light and dark.
     private static func pullRequestIcon() -> NSImage {
-        let size = NSSize(width: 16, height: 16)
+        let size = NSSize(width: 15, height: 15)
         let image = NSImage(size: size, flipped: true) { _ in
             NSColor.black.setStroke()
-            let scale = 16.0 / 24.0
+            let scale = 15.0 / 24.0
             let t = NSAffineTransform()
             t.scale(by: scale)
             t.concat()
