@@ -12,4 +12,6 @@ license = "MIT"
 
 [patch.crates-io]
 taffy = { path = "../../exact2/vendor/taffy" }
-cosmic-text = { path = "../../exact2/vendor/cosmic-text" }
+parley = { path = "../../exact2/vendor/parley" }
+fontique = { path = "../../exact2/vendor/fontique" }
+wgpu-hal = { path = "../../exact2/vendor/wgpu-hal" }

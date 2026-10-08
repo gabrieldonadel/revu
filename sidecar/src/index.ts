@@ -8,7 +8,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { loadConfig } from './config.ts';
 import { closeMissing, getMeta, listPending, markSeen, openDb, setMeta, upsertPr, type PullRequestRow } from './db.ts';
 import { GitHubClient, pollDeviceFlow, startDeviceFlow, type ReviewRequest } from './github.ts';
-import { cancelJob, fileAt, getJob, hunksFor, listJobs, listSkills, loadPersistedJobs, postReview, readSkill, startReview, writeSkill, type ReviewRequest as ReviewJobRequest } from './review.ts';
+import { cancelJob, detail, fileAt, getJob, hunksFor, listSkills, listSummaries, loadPersistedJobs, postReview, readSkill, startReview, writeSkill, type ReviewRequest as ReviewJobRequest } from './review.ts';
 import { availableAgents, runners, type AgentName } from './runners.ts';
 
 const config = loadConfig();
@@ -296,7 +296,11 @@ const server = Bun.serve<undefined>({
     }
 
     if (request.method === 'GET' && path === '/reviews') {
-      return json(listJobs());
+      // Summaries only (no transcript, patches, files or comment bodies):
+      // the app polls this list and parses it on its main thread.
+      const repo = url.searchParams.get('repo') ?? undefined;
+      const number = Number(url.searchParams.get('number') ?? 0) || undefined;
+      return json(listSummaries({ repo, number }));
     }
 
     if (request.method === 'POST' && path === '/reviews') {
@@ -319,10 +323,9 @@ const server = Bun.serve<undefined>({
     if (request.method === 'GET' && review) {
       const job = getJob(decodeURIComponent(review[1]!));
       if (!job) return json({ error: 'not found' }, 404);
-      const { patches: _p, ...slim } = job;
       // The hunks need the token; without one the window shows the comments alone.
       const hunks = job.result && token ? await hunksFor(job, token).catch(() => []) : [];
-      return json({ ...slim, hunks });
+      return json(detail(job, hunks));
     }
     const file = path.match(/^\/reviews\/([^/]+)\/file$/);
     if (request.method === 'GET' && file) {

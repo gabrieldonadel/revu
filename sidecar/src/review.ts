@@ -416,6 +416,65 @@ export function listJobs(): ReviewJob[] {
   return [...jobs.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
 
+/** A job as the list shows it: no transcript, no patches, no files, no
+ *  comment bodies — those live on the job's own route. The app polls the list
+ *  every few seconds and parses the answer on its main thread; a list that
+ *  carried every review's bulk froze the popover for seconds once a few
+ *  reviews had run (Gabriel's beachball, 2026-10-07). */
+export interface ReviewSummary {
+  id: string;
+  request: Omit<ReviewRequest, 'body'>;
+  status: ReviewJob['status'];
+  startedAt: string;
+  finishedAt: string | null;
+  lastOutputAt: string | null;
+  error: string | null;
+  posted: ReviewJob['posted'];
+  findings: number;
+  verdict: ReviewResult['verdict'] | '';
+}
+
+export function summarize(job: ReviewJob): ReviewSummary {
+  const { body: _body, ...request } = job.request;
+  return {
+    id: job.id,
+    request,
+    status: job.status,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    lastOutputAt: job.lastOutputAt,
+    error: job.error,
+    posted: job.posted,
+    findings: job.result?.comments?.length ?? 0,
+    verdict: job.result?.verdict ?? '',
+  };
+}
+
+export function listSummaries(filter: { repo?: string; number?: number } = {}): ReviewSummary[] {
+  return listJobs()
+    .filter((j) => (!filter.repo || j.request.repo === filter.repo) && (!filter.number || j.request.number === filter.number))
+    .map(summarize);
+}
+
+/** The bytes of a transcript the job's route sends: the window shows its
+ *  last 200 lines, so the rest stays here. */
+const OUTPUT_TAIL = 64 * 1024;
+
+/** A job as its own route answers it, for the window's 1 s poll: the tail of
+ *  the transcript with counts over the whole of it, the result, and neither
+ *  the patches nor the whole files (`/file` serves those one at a time). */
+export function detail(job: ReviewJob, hunks: HunkLine[][]): Record<string, unknown> {
+  const { patches: _patches, files: _files, output, ...rest } = job;
+  const lines = output.split('\n').filter((l) => l.trim());
+  return {
+    ...rest,
+    output: output.length > OUTPUT_TAIL ? output.slice(output.indexOf('\n', output.length - OUTPUT_TAIL) + 1) : output,
+    outputLines: lines.length,
+    ghCalls: lines.filter((l) => /\bgh (api|pr|repo|search)\b/.test(l) && !/ (thought|say): /.test(l)).length,
+    hunks,
+  };
+}
+
 export function startReview(request: ReviewRequest, token: string, runner: Runner, onChange: (job: ReviewJob) => void): ReviewJob {
   const job: ReviewJob = {
     id: `review:${Date.now()}:${++counter}`,

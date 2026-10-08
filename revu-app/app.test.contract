@@ -1,0 +1,2 @@
+// The app boots and its data lands; add this app's own assertions.
+test "the app opens"

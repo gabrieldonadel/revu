@@ -74,7 +74,7 @@ component Landing
 
   action go(url: string)
     openURL(url)
-  action jump(y: number) writes scrollY
+  action jump(y: number)
     scrollY = y
 
   view

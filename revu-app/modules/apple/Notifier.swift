@@ -415,6 +415,19 @@ final class MenuBar: NSObject, NSPopoverDelegate {
         } else {
             class_addMethod(cls, sel, imp, "B@:@")
         }
+        // A reopen (the Dock, Finder, `open -a revu`) shows the popover, as a
+        // click on the item does; AppKit's own answer would look for a window.
+        let reopen = #selector(NSApplicationDelegate.applicationShouldHandleReopen(_:hasVisibleWindows:))
+        let showPopover: @convention(block) (AnyObject, NSApplication, Bool) -> Bool = { _, _, _ in
+            DispatchQueue.main.async { MenuBar.shared?.show() }
+            return false
+        }
+        let reopenImp = imp_implementationWithBlock(showPopover)
+        if let method = class_getInstanceMethod(cls, reopen) {
+            method_setImplementation(method, reopenImp)
+        } else {
+            class_addMethod(cls, reopen, reopenImp, "B@:@B")
+        }
     }
 
     /// Takes the host window's content view into the popover's controller.

@@ -1,3 +1,4 @@
 /target/
 /dist/
 /app.contract.d.ts
+/.exact/

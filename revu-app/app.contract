@@ -448,7 +448,7 @@ component Revu
   // The whole file behind the expanded finding (design 1e, GitHub's ⤢).
   resource fileView = fileLines(jobId, expandedFinding, expandedPath, expandedSide, expandedLine, `${jobId}:${expandedFinding}`) as shape FileView
   // Finished reviews, for the popover's Reviewed tab (re-asked each minute and after a start).
-  resource recent = recentReviews(tick / 12, startedStamp) as shape Recent
+  resource recent = recentReviews(tick / 12, startedStamp, time.epochAtZero) as shape Recent
   resource prior = priorReview(`${prOwner}/${prName}`, detail.number, startedStamp, tick / 6) as shape Prior
   // The elapsed time ticks every second while a review runs (design 1d).
   resource elapsedNow = elapsedSince(job.startedAt, job.finishedAt, job.lastOutputAt, secMs) as shape Elapsed
@@ -515,59 +515,59 @@ component Revu
 
   // The button: the browser flow through the sidecar (LLP 0002 r4); the
   // device code is started alongside as the fallback shown beneath it.
-  action startSignIn writes device, browser, grant, nowMs
+  action startSignIn
     nowMs = time.epochAtZero + now()
     grant = none
     send browser = browserStart()
     send device = deviceStart(nowMs)
-  action openBrowser writes opened
+  action openBrowser
     match browser
       case some(b)
         if b.ok
           openURL(b.url)
       case none
         opened = none
-  action cancelSignIn writes device, browser, grant
+  action cancelSignIn
     device = none
     browser = none
     grant = none
-  action doSignOut writes signout, device, browser, grant, nav
+  action doSignOut
     device = none
     browser = none
     grant = none
     nav = open(nav, "/")
     send signout = signOut()
-  action markRead(id: string) writes seen
+  action markRead(id: string)
     send seen = markSeen(id)
-  action refreshNow writes nowMs, pollMs, announced
+  action refreshNow
     nowMs = time.epochAtZero + now()
     pollMs = nowMs
     send announced = announceNew(nowMs)
-  action askPermission writes permission
+  action askPermission
     send permission = requestNotificationPermission()
-  action setFilter(f: string) writes filter
+  action setFilter(f: string)
     filter = f
   // Opening a request reads it; the banner's "Mark read" does the same.
-  action openPr(id: string, owner: string, name: string, number: string) writes nav, seen, selectedFinding, viewingJob
+  action openPr(id: string, owner: string, name: string, number: string)
     selectedFinding = 0
     viewingJob = ""
     send seen = markSeen(id)
     nav = push(nav, path("pr", owner, name, number))
-  action goBack writes nav
+  action goBack
     nav = back(nav)
   // A page outside the app: the host's browser (Contract's `openURL`).
   action openLink(url: string)
     openURL(url)
   // With the menu bar (the tray answers), settings is a window of its own;
   // elsewhere (web) it is a screen.
-  action openSettings writes nav, opened
+  action openSettings
     if tray.ok
       send opened = openWindow("settings", "")
     else
       nav = push(nav, "/settings")
-  action setSettingsTab(t: string) writes settingsTab
+  action setSettingsTab(t: string)
     settingsTab = t
-  action runReview writes started, nav, selectedFinding, viewingJob
+  action runReview
     selectedFinding = 0
     viewingJob = ""
     // The previous answer goes first, so nothing of the old job shows while
@@ -577,91 +577,91 @@ component Revu
     nav = push(nav, path("review", prOwner, prName, prNumber))
   // An earlier review: show it — in its window when done, else its progress.
   // A finished review from the Reviewed tab: its window.
-  action showRecent(id: string) writes viewingJob, selectedFinding, reviewOpened
+  action showRecent(id: string)
     selectedFinding = 0
     viewingJob = id
     send reviewOpened = openWindow("review", id)
-  action showPrior writes viewingJob, selectedFinding, reviewOpened, nav
+  action showPrior
     selectedFinding = 0
     viewingJob = prior.id
     if prior.status == "done"
       send reviewOpened = openWindow("review", prior.id)
     else
       nav = push(nav, path("review", prOwner, prName, prNumber))
-  action cancelReview writes cancelled, nav
+  action cancelReview
     send cancelled = cancelReview(jobId)
     nav = back(nav)
-  action selectFinding(i: number) writes selectedFinding, editingComment, expandedFinding
+  action selectFinding(i: number)
     selectedFinding = i
     editingComment = -1
     expandedFinding = -1
-  action expandFinding(i: number, path: string, side: string, line: number) writes expandedFinding, expandedPath, expandedSide, expandedLine
+  action expandFinding(i: number, path: string, side: string, line: number)
     expandedFinding = i
     expandedPath = path
     expandedSide = side
     expandedLine = line
-  action collapseFinding writes expandedFinding
+  action collapseFinding
     expandedFinding = -1
-  action toggleComment(i: number) writes toggled
+  action toggleComment(i: number)
     send toggled = toggleComment(jobId, i)
   // Editing a comment: the draft lives in the window; each keystroke is
   // kept by the app (per job and comment) so a switch of finding or a Post
   // sees the latest wording.
-  action editComment(i: number, current: string) writes editingComment, commentDraft
+  action editComment(i: number, current: string)
     editingComment = i
     commentDraft = current
-  action changeComment(v: string) writes commentDraft, commentEdit
+  action changeComment(v: string)
     commentDraft = v
     send commentEdit = editComment(jobId, editingComment, v)
-  action doneEditing writes editingComment
+  action doneEditing
     editingComment = -1
-  action resetComment(i: number) writes commentEdit, commentDraft, editingComment
+  action resetComment(i: number)
     commentDraft = ""
     editingComment = -1
     send commentEdit = editComment(jobId, i, "")
-  action postComments writes postResult
+  action postComments
     send postResult = postComments(jobId, verdict)
-  action setVerdict(v: string) writes verdict
+  action setVerdict(v: string)
     verdict = v
-  action openReviewWindow writes reviewOpened
+  action openReviewWindow
     send reviewOpened = openWindow("review", jobId)
-  action chooseAgent(name: string) writes agentSet
+  action chooseAgent(name: string)
     send agentSet = setAgent(name)
-  action setModelDraft(v: string) writes modelDraft
+  action setModelDraft(v: string)
     modelDraft = v
-  action saveModel writes agentSet
+  action saveModel
     send agentSet = setModel(modelDraft)
-  action setTestRepo(v: string) writes testRepo
+  action setTestRepo(v: string)
     testRepo = v
-  action setNewPattern(v: string) writes newPattern
+  action setNewPattern(v: string)
     newPattern = v
-  action setNewSkill(v: string) writes newSkill
+  action setNewSkill(v: string)
     newSkill = v
-  action addRule writes rules, newPattern, newSkill
+  action addRule
     send rules = addRule(newPattern, newSkill)
     newPattern = ""
     newSkill = ""
-  action removeRule(pattern: string) writes rules
+  action removeRule(pattern: string)
     send rules = removeRule(pattern)
-  action selectSkill(name: string) writes selectedSkill, skillEditing, skillDraft
+  action selectSkill(name: string)
     selectedSkill = name
     skillEditing = false
     skillDraft = ""
-  action editSkill writes skillEditing, skillDraft
+  action editSkill
     skillEditing = true
     skillDraft = skills.content
-  action changeSkill(v: string) writes skillDraft
+  action changeSkill(v: string)
     skillDraft = v
-  action revertSkill writes skillEditing, skillDraft
+  action revertSkill
     skillEditing = false
     skillDraft = ""
-  action saveSkill writes saved, skillEditing
+  action saveSkill
     send saved = saveSkill(skills.selected, skillDraft)
     skillEditing = false
   // One 5s clock: while a device code is out and not yet granted, poll the
   // grant; once signed in, poll the inbox every 12th tick (60s) and announce
   // what is new on the tick after.
-  action clock writes tick, grant, nowMs, pollMs, announced
+  action clock
     tick = tick + 1
     nowMs = time.epochAtZero + now()
     if tick % 12 == 0 and isPopover
@@ -672,20 +672,23 @@ component Revu
       if pollMs == 0
         pollMs = nowMs
     else
-      match browser
-        case some(b)
-          if b.ok and not granted and tick % 2 == 0
-            send grant = browserPoll(b.state)
-        case none
-          tick = tick
-      match device
-        case some(d)
-          if d.ok and not granted and not codeExpired and tick % 2 == 1
-            send grant = devicePoll(d.deviceCode, nowMs)
-        case none
-          tick = tick
+      // The two polls alternate ticks: arms of one if/else, so each path sends grant once (LLP 1016 D5).
+      if tick % 2 == 0
+        match browser
+          case some(b)
+            if b.ok and not granted
+              send grant = browserPoll(b.state)
+          case none
+            tick = tick
+      else
+        match device
+          case some(d)
+            if d.ok and not granted and not codeExpired
+              send grant = devicePoll(d.deviceCode, nowMs)
+          case none
+            tick = tick
 
-  action second writes secMs, doneAnnounced, reviewOpened, doneNotice, browserOpened
+  action second
     if reviewing
       secMs = time.epochAtZero + now()
     // The browser opens by itself once the sidecar has the sign-in URL.

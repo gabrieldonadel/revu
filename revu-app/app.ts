@@ -116,10 +116,15 @@ async function gh(store: Store, path: string, init: RequestInit = {}): Promise<R
 }
 
 async function sidecar(path: string, init: RequestInit = {}): Promise<Response> {
+  // A read of the sidecar's state may overlap and reorder with the rest
+  // (LLP 1041): a slow one must not hold the ordered lane the module's calls
+  // and the other sidecar requests share. Writes stay ordered.
+  const independent = !init.method || init.method === 'GET' ? { exactIndependentHttp: { maxResponseBytes: 8 << 20 } } : {};
   return fetch(SIDECAR + path, {
     ...init,
+    ...independent,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(init.headers as Record<string, string> | undefined) },
-  });
+  } as RequestInit);
 }
 
 // --- session -----------------------------------------------------------
@@ -776,11 +781,13 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
     const body = (await res.json()) as Json;
     if (!res.ok) return { ...emptyJob, id: jobId, status: 'failed', error: String(body.error ?? `sidecar answered ${res.status}`) };
     const status = String(body.status ?? 'queued');
+    // The sidecar sends the transcript's tail and counts over the whole of it.
     const output = String(body.output ?? '');
     const lines = output.split('\n').filter((l) => l.trim());
+    const lineCount = Number(body.outputLines ?? lines.length);
     const writing = lines.some((l) => /writing \/tmp\/deep-code-review/.test(l));
-    const step = status === 'queued' ? 0 : status === 'preparing' ? 1 : status === 'running' ? (writing ? 4 : lines.length > 1 ? 3 : 2) : 5;
-    const progress = status === 'done' ? 100 : Math.min(95, step * 20 + (status === 'running' ? Math.min(15, lines.length) : 0));
+    const step = status === 'queued' ? 0 : status === 'preparing' ? 1 : status === 'running' ? (writing ? 4 : lineCount > 1 ? 3 : 2) : 5;
+    const progress = status === 'done' ? 100 : Math.min(95, step * 20 + (status === 'running' ? Math.min(15, lineCount) : 0));
     const now = epoch + tick * 5000;
     const result = (body.result ?? null) as Json | null;
     const rawComments = ((result?.comments ?? []) as Json[]);
@@ -814,7 +821,7 @@ async function reviewJob(jobId: string, tick: number, epoch: number, _toggled: n
         const kind = m[2] ?? 'tool';
         return { index, kind, time: m[1]!.slice(0, 5), text: kind === 'tool' ? summarise(m[3]!) : m[3]! };
       }),
-      calls: lines.filter((l) => /\bgh (api|pr|repo|search)\b/.test(l) && !/ (thought|say): /.test(l)).length,
+      calls: Number(body.ghCalls ?? lines.filter((l) => /\bgh (api|pr|repo|search)\b/.test(l) && !/ (thought|say): /.test(l)).length),
       lastOutputAt: String(body.lastOutputAt ?? body.startedAt ?? ''),
       repo: String(body.request?.repo ?? ''),
       number: Number(body.request?.number ?? 0),
@@ -862,20 +869,19 @@ async function priorReview(repo: string, number: number, _startedStamp: number, 
   const none = { exists: false, id: '', status: '', findings: 0, finished: '', verdict: '' };
   if (!repo || !number) return none;
   try {
-    const res = await sidecar('/reviews');
+    // The sidecar filters and answers with summaries (newest first), not the
+    // jobs' bulk: this runs every 30 s while a pull request is open.
+    const res = await sidecar(`/reviews?repo=${encodeURIComponent(repo)}&number=${number}`);
     if (!res.ok) return none;
-    const jobs = ((await res.json()) as Json[]).filter((j) => String(j.request?.repo) === repo && Number(j.request?.number) === number && j.status !== 'failed');
-    jobs.sort((a, b) => String(b.startedAt).localeCompare(String(a.startedAt)));
-    const j = jobs[0];
+    const j = ((await res.json()) as Json[]).find((s) => s.status !== 'failed');
     if (!j) return none;
-    const result = (j.result ?? null) as Json | null;
     return {
       exists: true,
       id: String(j.id),
       status: String(j.status),
-      findings: Array.isArray(result?.comments) ? result!.comments.length : 0,
+      findings: Number(j.findings ?? 0),
       finished: j.finishedAt ? clock(Date.parse(String(j.finishedAt))) : '',
-      verdict: String(result?.verdict ?? ''),
+      verdict: String(j.verdict ?? ''),
     };
   } catch {
     return none;
@@ -884,11 +890,14 @@ async function priorReview(repo: string, number: number, _startedStamp: number, 
 
 /** Finished reviews the sidecar keeps, newest first: the popover's
  *  "Reviewed" tab (Gabriel, 2026-10-01). */
-async function recentReviews(_tick: number, _startedStamp: number): Promise<Result<'recentReviews'>> {
+async function recentReviews(tick: number, _startedStamp: number, epoch: number): Promise<Result<'recentReviews'>> {
+  // A source has no clock (the bake refuses Date.now()): the minute hand is the tick.
+  const nowMs = epoch + tick * 60_000;
   try {
     const res = await sidecar('/reviews');
     if (!res.ok) return { ready: true, items: [] };
-    const jobs = ((await res.json()) as Json[]).filter((j) => j.status === 'done' && j.result);
+    // Summaries (the sidecar's `findings`/`verdict`), never the jobs' bulk.
+    const jobs = ((await res.json()) as Json[]).filter((j) => j.status === 'done' && j.verdict);
     jobs.sort((a, b) => String(b.finishedAt ?? b.startedAt).localeCompare(String(a.finishedAt ?? a.startedAt)));
     return {
       ready: true,
@@ -897,9 +906,9 @@ async function recentReviews(_tick: number, _startedStamp: number): Promise<Resu
         repo: String(j.request?.repo ?? ''),
         number: Number(j.request?.number ?? 0),
         title: String(j.request?.title ?? ''),
-        finished: j.finishedAt ? age(String(j.finishedAt), Date.now()) : '',
-        findings: Array.isArray(j.result?.comments) ? j.result.comments.length : 0,
-        verdict: String(j.result?.verdict ?? 'COMMENT'),
+        finished: j.finishedAt ? age(String(j.finishedAt), nowMs) : '',
+        findings: Number(j.findings ?? 0),
+        verdict: String(j.verdict || 'COMMENT'),
         posted: Boolean(j.posted),
         agent: String(j.request?.agent ?? 'claude'),
       })),
@@ -1138,7 +1147,7 @@ const sources: Sources = {
   markSeen: ([id], _store, storage) => markSeen(storage, String(id)),
   startReview: ([id, skill], store, storage) => startReview(store, storage, String(id ?? ''), String(skill ?? DEFAULT_SKILL)),
   cancelReview: ([jobId]) => cancelReview(String(jobId ?? '')),
-  recentReviews: ([tick, startedStamp]) => recentReviews(Number(tick), Number(startedStamp)),
+  recentReviews: ([tick, startedStamp, epoch]) => recentReviews(Number(tick), Number(startedStamp), Number(epoch)),
   priorReview: ([repo, number, startedStamp, tick]) => priorReview(String(repo ?? ''), Number(number), Number(startedStamp), Number(tick)),
   elapsedSince: ([startedAt, finishedAt, lastOutputAt, nowMs]) => elapsedSince(String(startedAt ?? ''), String(finishedAt ?? ''), String(lastOutputAt ?? ''), Number(nowMs)),
   addRule: ([pattern, skill], _store, storage) => addRule(storage, String(pattern ?? ''), String(skill ?? '')),

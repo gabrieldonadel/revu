@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""A stand-in for /usr/bin/iconutil that the build finds first on PATH.
+
+It hands the call to the real tool and, when that one fails (2026-10-07: this
+Mac's iconutil answers "Invalid Iconset" to every set, its own round-trip
+included), writes the .icns itself. An .icns is a header and a list of
+entries; each entry is a four-letter type, a length, and — for every size
+macOS has used since 10.7 — the PNG bytes as they are.
+
+Only `-c icns <set> -o <file>` is implemented by the fallback; anything else
+is the real tool's alone.
+"""
+import os
+import struct
+import subprocess
+import sys
+
+REAL = '/usr/bin/iconutil'
+
+# iconset file name -> icns entry type (PNG payload).
+TYPES = {
+    'icon_16x16.png': b'icp4',
+    'icon_16x16@2x.png': b'ic11',
+    'icon_32x32.png': b'icp5',
+    'icon_32x32@2x.png': b'ic12',
+    'icon_128x128.png': b'ic07',
+    'icon_128x128@2x.png': b'ic13',
+    'icon_256x256.png': b'ic08',
+    'icon_256x256@2x.png': b'ic14',
+    'icon_512x512.png': b'ic09',
+    'icon_512x512@2x.png': b'ic10',
+}
+
+
+def write_icns(iconset: str, out: str) -> None:
+    entries = []
+    for name, kind in TYPES.items():
+        path = os.path.join(iconset, name)
+        if not os.path.isfile(path):
+            continue
+        with open(path, 'rb') as f:
+            data = f.read()
+        if not data.startswith(b'\x89PNG'):
+            raise SystemExit(f'{path}: not a PNG')
+        entries.append(kind + struct.pack('>I', len(data) + 8) + data)
+    if not entries:
+        raise SystemExit(f'{iconset}: no icon_<size>.png files')
+    body = b''.join(entries)
+    with open(out, 'wb') as f:
+        f.write(b'icns' + struct.pack('>I', len(body) + 8) + body)
+
+
+def main(argv: list) -> int:
+    if os.path.isfile(REAL):
+        done = subprocess.run([REAL, *argv], capture_output=True, text=True)
+        if done.returncode == 0:
+            sys.stdout.write(done.stdout)
+            sys.stderr.write(done.stderr)
+            return 0
+    # Fallback: -c icns <set> [-o <file>]
+    if len(argv) >= 3 and argv[0] == '-c' and argv[1] == 'icns':
+        iconset = argv[2]
+        out = argv[argv.index('-o') + 1] if '-o' in argv else os.path.splitext(iconset)[0] + '.icns'
+        write_icns(iconset, out)
+        return 0
+    sys.stderr.write('iconutil (shim): the real tool failed and only `-c icns` has a fallback\n')
+    return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))
