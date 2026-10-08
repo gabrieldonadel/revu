@@ -65,3 +65,21 @@ export async function devicesFor(login: string): Promise<Device[]> {
 export function registryKind(): string {
   return supabase() ? 'supabase' : 'memory';
 }
+
+/** The heartbeat row (`/keepalive`): a write a day keeps a free Supabase
+ *  project from being paused for inactivity (Supabase pauses after 7 quiet
+ *  days; 2026-10-08). Its login has underscores, which no GitHub login can,
+ *  so no webhook ever matches it and no push is ever sent to its token. */
+export const KEEPALIVE_TOKEN = 'revu-keepalive';
+export const KEEPALIVE_LOGIN = '__revu_keepalive__';
+
+export async function heartbeat(now = new Date().toISOString()): Promise<{ registry: string; devices: number; at: string }> {
+  if (!supabase()) return { registry: 'memory', devices: memory.size, at: now };
+  await rest('revu_devices?on_conflict=token', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: JSON.stringify([{ token: KEEPALIVE_TOKEN, login: KEEPALIVE_LOGIN, bundle: 'keepalive', updated_at: now }]),
+  });
+  const rows = (await rest(`revu_devices?select=token&token=neq.${KEEPALIVE_TOKEN}`)) as unknown[] | undefined;
+  return { registry: 'supabase', devices: rows?.length ?? 0, at: now };
+}
