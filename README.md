@@ -1,16 +1,16 @@
 # revu
 
 A macOS app for reviewing GitHub pull requests, built on
-[Exact2](https://github.com/ccheever/exact2) with an
+[Exact](https://github.com/expo/exact) with an
 [LLP](https://github.com/ccheever/llp) design corpus in `llp/`.
 
-- **`revu-app/`** — the Exact2 app (`app.contract` UI, `app.ts` data: device-flow
+- **`revu-app/`** — the Exact app (`app.contract` UI, `app.ts` data: device-flow
   sign-in, GitHub polling, Keychain token, SQLite seen-state, PR details, skill
   rules, review jobs). The screens follow the Claude Design file "PR Review
   Menu Bar" (LLP 0005). Notifications and the menu bar item come from the
   app's own native module (`revu-app/modules/`, LLP 0003, LLP 0006): the
   bundled app lives in the menu bar and its window is the popover.
-- **`landing/`** — the website, a second exact2 app built for the web
+- **`landing/`** — the website, a second Exact app built for the web
   (`bun run landing:web` for the dev loop, `landing:build` for `landing/target/web-dist`).
   Placeholder page until the design lands (LLP 0008).
 - **`sidecar/`** — Bun daemon that runs AI reviews on your local agent CLI (Claude Code or Codex, Settings ▸ Model; LLP 0004). It never checks your code out: the agent reads the PR through `gh`. Default skill: `skills/deep-code-review/`.
@@ -26,7 +26,7 @@ the Codex CLI (`codex`) installed and signed in for AI reviews.
 
 ## Run (from source)
 
-Requires a sibling `../exact2` checkout and its prerequisites (Bun 1.4.2,
+Requires a sibling `../exact` checkout of [expo/exact](https://github.com/expo/exact) and its prerequisites (Bun 1.4.2,
 Rust 1.97, the vanilla Hermes engine built by a sibling `../ibex`).
 
 ```sh

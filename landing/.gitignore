@@ -2,3 +2,4 @@
 /dist/
 /app.contract.d.ts
 /.exact/
+/.env.local

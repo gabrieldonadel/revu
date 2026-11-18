@@ -110,7 +110,7 @@ component Landing
               text "Download for macOS"
             button press=go("https://github.com/gabrieldonadel/revu") class=PillOutline testId="hero-github"
               text "View on GitHub"
-          when release.ready
+          if release.ready
             text `${release.tag} · ${release.sizeMb} · ${release.published}${release.prerelease ? " · release candidate" : ""} · Apple Silicon, macOS 14+` font-size=12 color="#687076" testId="release-line"
 
         // ---- the app, on a desktop -------------------------------------
@@ -306,33 +306,33 @@ component Icon
     color: string
   view
     svg width=size height=size viewBox="0 0 24 24" fill="none" flex-shrink=0
-      when name == "git-pull-request"
+      if name == "git-pull-request"
         circle cx=18 cy=18 r=3 stroke=color stroke-width=2
         circle cx=6 cy=6 r=3 stroke=color stroke-width=2
         path d="M13 6h3a2 2 0 0 1 2 2v7" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M6 9v12" stroke=color stroke-width=2 stroke-linecap="round"
-      when name == "download"
+      if name == "download"
         path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="m7 10 5 5 5-5" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M12 15V3" stroke=color stroke-width=2 stroke-linecap="round"
-      when name == "wifi"
+      if name == "wifi"
         path d="M12 20h.01" stroke=color stroke-width=2 stroke-linecap="round"
         path d="M2 8.82a15 15 0 0 1 20 0" stroke=color stroke-width=2 stroke-linecap="round"
         path d="M5 12.859a10 10 0 0 1 14 0" stroke=color stroke-width=2 stroke-linecap="round"
         path d="M8.5 16.429a5 5 0 0 1 7 0" stroke=color stroke-width=2 stroke-linecap="round"
-      when name == "bell"
+      if name == "bell"
         path d="M10.268 21a2 2 0 0 0 3.464 0" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
-      when name == "sparkles"
+      if name == "sparkles"
         path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M20 3v4" stroke=color stroke-width=2 stroke-linecap="round"
         path d="M22 5h-4" stroke=color stroke-width=2 stroke-linecap="round"
-      when name == "message-square-check"
+      if name == "message-square-check"
         path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="m9 10 2 2 4-4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
-      when name == "github"
+      if name == "github"
         path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
-      when name == "file-text"
+      if name == "file-text"
         path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M14 2v4a2 2 0 0 0 2 2h4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M10 9H8" stroke=color stroke-width=2 stroke-linecap="round"

@@ -66,8 +66,8 @@ shape Inbox
   teamCount: number
   polledAt: string
   error: string
-  mine: list<Review>
-  team: list<Review>
+  mine: Review[]
+  team: Review[]
 
 shape ChangedFile
   path: string
@@ -92,7 +92,7 @@ shape PrDetail
   files: number
   additions: number
   deletions: number
-  changed: list<ChangedFile>
+  changed: ChangedFile[]
   body: string
   skill: string
   skillRule: string
@@ -117,7 +117,7 @@ shape RecentItem
 
 shape Recent
   ready: bool
-  items: list<RecentItem>
+  items: RecentItem[]
 
 shape Prior
   exists: bool
@@ -137,7 +137,7 @@ shape FileView
   ready: bool
   path: string
   sha: string
-  lines: list<FileLine>
+  lines: FileLine[]
   error: string
 
 shape Comment
@@ -150,7 +150,7 @@ shape Comment
   body: string
   edited: bool
   chosen: bool
-  hunk: list<HunkLine>
+  hunk: HunkLine[]
 
 shape LogLine
   index: number
@@ -173,12 +173,12 @@ shape Job
   repo: string
   number: number
   title: string
-  log: list<LogLine>
+  log: LogLine[]
   calls: number
   summary: string
   verdict: string
   hasResult: bool
-  comments: list<Comment>
+  comments: Comment[]
   chosenCount: number
   posted: bool
   postedUrl: string
@@ -233,13 +233,13 @@ shape SkillLine
 
 shape SkillSettings
   reachable: bool
-  rules: list<Rule>
-  skills: list<SkillFile>
+  rules: Rule[]
+  skills: SkillFile[]
   selected: string
   usedBy: string
   path: string
   content: string
-  lines: list<SkillLine>
+  lines: SkillLine[]
   error: string
 
 shape RulesResult
@@ -272,7 +272,7 @@ shape Announced
 
 shape Actions
   stamp: number
-  applied: list<string>
+  applied: string[]
 
 shape Seen
   stamp: number
@@ -429,7 +429,7 @@ component Revu
   state verdict = ""
   state browserOpened = ""
 
-  // @ref exact2 LLP 1027.000.000 — the date is a host fact; now() is ms since launch.
+  // @ref exact2 LLP 1027.000.000 — the date is a host fact; performanceNow() is ms since launch.
   resource time = exactTime() as shape Time
   resource session = currentSession() as shape Session
   // Re-asked every 5 s for the first minute (the app starts the sidecar
@@ -516,7 +516,7 @@ component Revu
   // The button: the browser flow through the sidecar (LLP 0002 r4); the
   // device code is started alongside as the fallback shown beneath it.
   action startSignIn
-    nowMs = time.epochAtZero + now()
+    nowMs = time.epochAtZero + performanceNow()
     grant = none
     send browser = browserStart()
     send device = deviceStart(nowMs)
@@ -540,7 +540,7 @@ component Revu
   action markRead(id: string)
     send seen = markSeen(id)
   action refreshNow
-    nowMs = time.epochAtZero + now()
+    nowMs = time.epochAtZero + performanceNow()
     pollMs = nowMs
     send announced = announceNew(nowMs)
   action askPermission
@@ -663,7 +663,7 @@ component Revu
   // what is new on the tick after.
   action clock
     tick = tick + 1
-    nowMs = time.epochAtZero + now()
+    nowMs = time.epochAtZero + performanceNow()
     if tick % 12 == 0 and isPopover
       pollMs = nowMs
     if signedIn
@@ -690,7 +690,7 @@ component Revu
 
   action second
     if reviewing
-      secMs = time.epochAtZero + now()
+      secMs = time.epochAtZero + performanceNow()
     // The browser opens by itself once the sidecar has the sign-in URL.
     match browser
       case some(b)
@@ -701,7 +701,7 @@ component Revu
         browserOpened = browserOpened
     if isPopover and job.ready and job.status == "done" and doneAnnounced != jobId
       doneAnnounced = jobId
-      send doneNotice = notifyDone(jobId, `${prOwner}/${prName} #${prNumber}`, length(job.comments))
+      send doneNotice = notifyDone(jobId, `${prOwner}/${prName} #${prNumber}`, (job.comments).length)
       send reviewOpened = openWindow("review", jobId)
 
   task poll mount
@@ -714,7 +714,7 @@ component Revu
       revu-notifier width=0 height=0 testId="notifier"
 
       // ---- 1a Onboarding — connect GitHub ------------------------------
-      when not signedIn
+      if not signedIn
         column padding-top=32 padding-right=28 padding-bottom=24 padding-left=28 gap=24 testId="onboarding"
           column width=48 height=48 border-radius=11 background-color="light-dark(#11181c, #ffffff)" align-items="center" justify-content="center"
             Icon(name="git-pull-request", size=25, color="light-dark(#ffffff, #0b0f14)")
@@ -739,7 +739,7 @@ component Revu
               case some(d)
                 match browser
                   case some(b)
-                    when b.ok
+                    if b.ok
                       text "GitHub opened in your browser — approve revu there and come back." font-size=13 font-weight=500
                       button press=openBrowser class=Outline align-self="flex-start" testId="open-browser"
                         text "Open GitHub again"
@@ -752,9 +752,9 @@ component Revu
                   text d.userCode font-family="ui-monospace" font-size=18 font-weight=600 letter-spacing=2 testId="user-code"
                   button press=openLink(d.verificationUri) class=Ghost height=24 padding-left=0 padding-right=0 align-self="flex-start" color="light-dark(#0072DE, #4aa8ff)" font-size=12 testId="verification-link"
                     text "Open github.com/login/device ↗"
-                  when d.error != ""
+                  if d.error != ""
                     text d.error class=Error testId="device-error"
-                  when codeExpired
+                  if codeExpired
                     text "The code expired; start again." class=Error testId="grant-status"
                   else
                     match grant
@@ -770,12 +770,12 @@ component Revu
                   text "Continue with GitHub"
                 column class=Card
                   text "Opens GitHub in your browser to approve revu. A one-time code is offered as a fallback." class=Tertiary
-                when session.error != ""
+                if session.error != ""
                   text session.error class=Error testId="error"
           text "Requests the notifications, repo and read:user scopes. The token is stored in the macOS Keychain." font-size=12 line-height=1.5 color="light-dark(#687076, #6e7781)"
 
       // ---- 1b Popover — pending requests --------------------------------
-      when signedIn and screen == "inbox"
+      if signedIn and screen == "inbox"
         column flex=1 min-height=0 testId="inbox-screen"
           row class=Header
             text "Review requests" class=HeaderTitle testId="title"
@@ -796,21 +796,21 @@ component Revu
               text `${inbox.teamCount}` color="light-dark(#687076, #6e7781)"
             button press=setFilter("reviewed") class=(filter == "reviewed" ? ChipOn : Chip) testId="filter-reviewed"
               text "Reviewed"
-              text `${length(recent.items)}` color="light-dark(#687076, #6e7781)"
+              text `${(recent.items).length}` color="light-dark(#687076, #6e7781)"
           box class=Divider
-          when notifications.available and notifications.permission != "granted"
+          if notifications.available and notifications.permission != "granted"
             row padding-left=16 padding-right=16 padding-top=8 padding-bottom=8 gap=8 align-items="center" background-color="light-dark(#f9fafb, #111418)"
               text "Get a banner when a review is requested." class=Secondary flex=1
               button press=askPermission class=OutlineSm testId="ask-permission"
                 text "Allow notifications"
             box class=Divider
-          when inbox.error != ""
+          if inbox.error != ""
             text inbox.error class=Error padding-left=16 padding-right=16 padding-top=8 testId="error"
           scroll flex=1 min-height=0
             column padding-bottom=6
-              when filter == "reviewed"
+              if filter == "reviewed"
                 text "Recently reviewed" class=SectionLabel padding-top=10 padding-left=16 padding-right=16 padding-bottom=4
-                each rv in recent.items key=rv.id
+                for rv in recent.items key=rv.id
                   button press=showRecent(rv.id) class=Row testId=`recent-${rv.id}`
                     column width=14 height=14 border-radius=9999 margin-top=3 flex-shrink=0 background-color=(rv.verdict == "APPROVE" ? "light-dark(rgb(9, 141, 72), #4ade80)" : rv.verdict == "REQUEST_CHANGES" ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : "light-dark(#687076, #6e7781)") align-items="center" justify-content="center"
                       text "✓" color="#fff" font-size=9 font-weight=700 line-height="9px"
@@ -820,21 +820,21 @@ component Revu
                       text `${rv.findings} ${rv.findings == 1 ? "finding" : "findings"} · ${rv.verdict == "APPROVE" ? "approve" : rv.verdict == "REQUEST_CHANGES" ? "request changes" : "comment"}${rv.posted ? " · posted" : ""} · ${rv.finished}` class=Secondary line-clamp=1
                     row class=OutlineSm
                       text "Open"
-                when recent.ready and length(recent.items) == 0
+                if recent.ready and (recent.items).length == 0
                   text "No reviews yet. Open a request and run one." class=Tertiary padding-left=16 padding-top=6 padding-bottom=6 testId="empty-reviewed"
-              when filter != "teams" and filter != "reviewed"
+              if filter != "teams" and filter != "reviewed"
                 text "Requested from you" class=SectionLabel padding-top=10 padding-left=16 padding-right=16 padding-bottom=4
-                each r in inbox.mine key=r.id
+                for r in inbox.mine key=r.id
                   ReviewRow(r=r, press=openPr(r.id, r.owner, r.name, `${r.number}`))
-                when inbox.ready and inbox.mineCount == 0
+                if inbox.ready and inbox.mineCount == 0
                   text "Nothing waiting on you." class=Tertiary padding-left=16 padding-top=6 padding-bottom=6 testId="empty-mine"
-              when filter != "mine" and filter != "reviewed"
+              if filter != "mine" and filter != "reviewed"
                 text "Requested from teams" class=SectionLabel padding-top=12 padding-left=16 padding-right=16 padding-bottom=4
-                each r in inbox.team key=r.id
+                for r in inbox.team key=r.id
                   ReviewRow(r=r, press=openPr(r.id, r.owner, r.name, `${r.number}`))
-                when inbox.ready and inbox.teamCount == 0
+                if inbox.ready and inbox.teamCount == 0
                   text "No team requests." class=Tertiary padding-left=16 padding-top=6 padding-bottom=6 testId="empty-team"
-              when not inbox.ready
+              if not inbox.ready
                 column testId="loading"
                   row class=Row
                     box class=Dot background-color="light-dark(#eaecf0, #252932)"
@@ -855,7 +855,7 @@ component Revu
               text "Open on GitHub ↗"
 
       // ---- 1c Popover — PR quick look -----------------------------------
-      when signedIn and screen == "pr"
+      if signedIn and screen == "pr"
         column flex=1 min-height=0 testId="pr-screen"
           row padding-top=12 padding-right=12 padding-bottom=8 padding-left=12 gap=6 align-items="center"
             button press=goBack class=IconBtn testId="back" aria-label="Back"
@@ -863,7 +863,7 @@ component Revu
             text `${prOwner}/${prName} #${prNumber}` class=MonoLabel flex=1
             button press=openLink(detail.url) class=IconBtn color="light-dark(#596068, #9aa4ae)" font-size=13 testId="open-on-github"
               text "↗"
-          when not detail.ready and detail.error == ""
+          if not detail.ready and detail.error == ""
             column flex=1 testId="pr-loading"
               column padding-left=16 padding-right=16 padding-bottom=14 gap=10
                 Skeleton(w="88%", h=18)
@@ -904,17 +904,17 @@ component Revu
                 Skeleton(w="94%", h=12)
                 Skeleton(w="76%", h=12)
                 Skeleton(w="88%", h=12)
-          when not detail.ready and detail.error != ""
+          if not detail.ready and detail.error != ""
             column padding=16 gap=8
               text "The pull request could not be read" font-size=16 font-weight=600
               text detail.error class=Error testId="pr-error"
-          when detail.ready
+          if detail.ready
             scroll flex=1 min-height=0
               column
                 column padding-left=16 padding-right=16 padding-bottom=14 gap=10
                   text detail.title font-size=16 font-weight=600 line-height=1.35 letter-spacing=-0.15 testId="pr-title"
                   row gap=8 align-items="center"
-                    when detail.authorAvatar != ""
+                    if detail.authorAvatar != ""
                       image detail.authorAvatar width=18 height=18 border-radius=9999 object-fit="cover" flex-shrink=0 aria-label="" testId="author-avatar"
                     else
                       box width=18 height=18 border-radius=9999 background-color="light-dark(#d7dbdf, #30363d)" flex-shrink=0
@@ -941,39 +941,39 @@ component Revu
                 box class=Divider
                 column padding=16 padding-top=12 padding-bottom=12 gap=6
                   text "Files" class=SectionLabel
-                  each f in detail.changed key=f.path
+                  for f in detail.changed key=f.path
                     row justify-content="space-between" gap=12 class=Mono line-height=1.6
                       text f.path color="light-dark(#596068, #9aa4ae)" line-clamp=1 flex=1 min-width=0
                       row gap=4 flex-shrink=0
                         text `+${f.additions}` color="light-dark(rgb(9, 141, 72), #4ade80)"
                         text `−${f.deletions}` color="light-dark(rgb(207, 34, 46), #ff7a7a)"
-                  when detail.ready and detail.files > length(detail.changed)
-                    text `… and ${detail.files - length(detail.changed)} more` class=Tertiary
+                  if detail.ready and detail.files > (detail.changed).length
+                    text `… and ${detail.files - (detail.changed).length} more` class=Tertiary
                 box class=Divider
                 column padding=16 padding-top=12 padding-bottom=12 gap=6
                   text "Description" class=SectionLabel
-                  when detail.body == ""
+                  if detail.body == ""
                     text "(no description)" class=Secondary testId="pr-body"
                   else
                     text detail.body markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#596068, #9aa4ae)" testId="pr-body"
           box class=Divider
-          when prior.exists and prior.status == "done"
+          if prior.exists and prior.status == "done"
             row padding-top=8 padding-left=16 padding-right=16 gap=6 align-items="center"
               column width=14 height=14 border-radius=9999 background-color="light-dark(rgb(9, 141, 72), #4ade80)" align-items="center" justify-content="center"
                 text "✓" color="#fff" font-size=9 font-weight=700 line-height="9px"
               text `Reviewed at ${prior.finished} · ${prior.findings} ${prior.findings == 1 ? "finding" : "findings"} · suggested ${prior.verdict == "APPROVE" ? "approve" : prior.verdict == "REQUEST_CHANGES" ? "request changes" : "comment"}` class=Tertiary line-clamp=1 testId="prior-line"
           row padding=12 padding-left=16 padding-right=16 gap=8
-            when prior.exists and prior.status == "done"
+            if prior.exists and prior.status == "done"
               button press=showPrior class=PrimarySm flex=1 disabled=(not detail.ready) testId="show-review"
                 Icon(name="sparkles", size=14, color="light-dark(#ffffff, #0b0f14)")
                 text "Show review"
               button press=runReview class=Outline disabled=(not detail.ready or not sidecar.reachable) testId="run-again"
                 text "Run again"
-            when prior.exists and prior.status != "done"
+            if prior.exists and prior.status != "done"
               button press=showPrior class=PrimarySm flex=1 disabled=(not detail.ready) testId="show-running"
                 box width=12 height=12 border-radius=9999 border-style="solid" border-width=2 border-color="light-dark(#596068, #9aa4ae)" border-top-color="light-dark(#ffffff, #0b0f14)" box-sizing="border-box" animation="spin 900ms linear infinite"
                 text "Review running…"
-            when not prior.exists
+            if not prior.exists
               button press=runReview class=PrimarySm flex=1 disabled=(not detail.ready or not sidecar.reachable) opacity=(detail.ready ? 1 : 0.5) testId="run-review"
                 Icon(name="sparkles", size=14, color="light-dark(#ffffff, #0b0f14)")
                 text (sidecar.reachable ? "Run AI review" : "Sidecar offline")
@@ -981,28 +981,28 @@ component Revu
               text "Open diff"
 
       // ---- 1d / 1e Popover — AI review in progress, then the results -----
-      when signedIn and screen == "review"
+      if signedIn and screen == "review"
         column flex=1 min-height=0 testId="review-screen"
           row padding-top=12 padding-right=12 padding-bottom=8 padding-left=12 gap=6 align-items="center"
             button press=goBack class=IconBtn testId="back" aria-label="Back"
               Icon(name="chevron-left", size=16, color="light-dark(#596068, #9aa4ae)")
             text `${prOwner}/${prName} #${prNumber}` class=MonoLabel flex=1
-            when job.ready
+            if job.ready
               row gap=6 align-items="center"
                 Icon(name="file-text", size=13, color="light-dark(#687076, #6e7781)")
                 text `${job.skill}.md · ${elapsedNow.text}` class=Tertiary
-          when not job.ready
+          if not job.ready
             column padding=16 gap=6
               row gap=10 align-items="center"
                 box width=14 height=14 border-radius=9999 border-style="solid" border-width=2 border-color="light-dark(#d7dbdf, #30363d)" border-top-color="light-dark(#11181c, #e6edf3)" box-sizing="border-box" animation="spin 900ms linear infinite"
                 text "Starting the review…" font-size=16 font-weight=600
               match started
                 case some(s)
-                  when s.error != ""
+                  if s.error != ""
                     text s.error class=Error testId="start-error"
                 case none
                   text "Asking the sidecar." class=Secondary
-          when job.ready and reviewing
+          if job.ready and reviewing
             column flex=1 min-height=0 testId="review-running"
               column padding-left=16 padding-right=16 padding-bottom=16 gap=6
                 text `Reviewing with ${job.skill}.md` font-size=16 font-weight=600 letter-spacing=-0.15 testId="review-title"
@@ -1024,19 +1024,19 @@ component Revu
                   // One entry per row: the time in a dim column, a marker for
                   // the kind ($ a command, ◦ a thought, › the agent's words),
                   // the text clamped to three lines, a hairline between rows.
-                  each line in job.log key=`${line.index}`
+                  for line in job.log key=`${line.index}`
                     row gap=10 align-items="flex-start" padding-top=7 padding-bottom=7 border-bottom-style="solid" border-bottom-width=1 border-bottom-color="light-dark(#1f242c, #171b21)"
                       text line.time font-family="ui-monospace" font-size=10 line-height=1.6 color="light-dark(#687076, #6e7781)" width=52 flex-shrink=0 padding-top=1
                       text (line.kind == "tool" ? "$" : line.kind == "thought" ? "◦" : "›") font-family="ui-monospace" font-size=11 line-height=1.6 width=10 flex-shrink=0 color=(line.kind == "tool" ? "light-dark(#4ade80, #4ade80)" : line.kind == "thought" ? "light-dark(#9aa4ae, #6e7781)" : "light-dark(#ffffff, #e6edf3)")
-                      when line.kind == "thought"
+                      if line.kind == "thought"
                         text line.text font-size=12 line-height=1.5 font-style="italic" color="light-dark(#9aa4ae, #8b949e)" flex=1 min-width=0 line-clamp=3 testId="thought"
-                      when line.kind == "say"
+                      if line.kind == "say"
                         text line.text font-size=12 line-height=1.5 color="light-dark(#e6edf3, #c9d1d9)" flex=1 min-width=0 line-clamp=3
-                      when line.kind == "tool"
+                      if line.kind == "tool"
                         text line.text font-family="ui-monospace" font-size=11 line-height=1.6 color="light-dark(#c9d1d9, #9aa4ae)" flex=1 min-width=0 line-clamp=3 overflow-wrap="anywhere"
-                  when length(job.log) == 0
+                  if (job.log).length == 0
                     text "waiting for output…" font-family="ui-monospace" font-size=11 line-height=1.7 color="light-dark(#687076, #6e7781)"
-                  when elapsedNow.quiet >= 20
+                  if elapsedNow.quiet >= 20
                     row gap=8 align-items="center" padding-top=4
                       box width=10 height=10 border-radius=9999 border-style="solid" border-width=1.5 border-color="light-dark(#484f58, #484f58)" border-top-color="light-dark(#c9d1d9, #9aa4ae)" box-sizing="border-box" animation="spin 900ms linear infinite"
                       text `quiet for ${elapsedNow.quietText} — the agent is reading or thinking` font-family="ui-monospace" font-size=11 line-height=1.7 color="light-dark(#687076, #9aa4ae)" testId="quiet"
@@ -1045,21 +1045,21 @@ component Revu
                 text `Elapsed ${elapsedNow.text}` class=Tertiary testId="elapsed"
                 button press=cancelReview class=Outline height=28 testId="cancel-review"
                   text "Cancel"
-          when job.ready and job.status == "failed"
+          if job.ready and job.status == "failed"
             column padding=16 gap=8 testId="review-failed"
               text "The review did not run" font-size=16 font-weight=600
               text job.error class=Error
               text "Pick the agent in Settings ▸ Model; it must be installed and signed in." class=Secondary
               button press=goBack class=Outline align-self="flex-start"
                 text "Back"
-          when job.ready and job.status == "done"
+          if job.ready and job.status == "done"
             column padding=16 gap=12 testId="review-results"
               column class=Card gap=8
                 row gap=8 align-items="center"
                   column width=14 height=14 border-radius=9999 background-color="light-dark(rgb(9, 141, 72), #4ade80)" align-items="center" justify-content="center"
                     text "✓" color="#fff" font-size=9 font-weight=700 line-height="9px"
                   text "Review ready" font-size=15 font-weight=600
-                text `${length(job.comments)} ${length(job.comments) == 1 ? "finding" : "findings"} · suggested ${job.verdict == "APPROVE" ? "approve" : job.verdict == "REQUEST_CHANGES" ? "request changes" : "comment"}` class=Secondary
+                text `${(job.comments).length} ${(job.comments).length == 1 ? "finding" : "findings"} · suggested ${job.verdict == "APPROVE" ? "approve" : job.verdict == "REQUEST_CHANGES" ? "request changes" : "comment"}` class=Secondary
                 text (job.summary == "" ? "The agent returned no summary." : job.summary) markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#596068, #9aa4ae)" line-clamp=6 testId="summary"
               button press=openReviewWindow class=PrimarySm testId="open-review-window"
                 text "Open the review window"
@@ -1068,23 +1068,23 @@ component Revu
                 text "Back to the list"
 
       // ---- 1e Review window — pick comments to post ----------------------
-      when signedIn and screen == "review-window"
+      if signedIn and screen == "review-window"
         column flex=1 min-height=0 testId="review-window"
           row height=44 padding-left=80 padding-right=14 gap=14 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#f9fafb, #111418)" flex-shrink=0
             text (job.title == "" ? `${job.repo} #${job.number}` : job.title) font-size=13 font-weight=600 line-clamp=1 flex-shrink=1
             text `${job.repo} #${job.number}` class=MonoLabel flex-shrink=0
             box flex=1
             text `${job.agent == "codex" ? "codex" : "claude"} · ${job.skill}.md · ${job.elapsed}` class=Tertiary flex-shrink=0
-          when not job.ready
+          if not job.ready
             column padding=20 gap=8
               Skeleton(w="60%", h=14)
               Skeleton(w="90%", h=12)
               Skeleton(w="80%", h=12)
-          when job.ready and job.status != "done"
+          if job.ready and job.status != "done"
             column padding=20 gap=8
               text (job.status == "failed" ? "The review did not run" : "The review is still running") font-size=16 font-weight=600
               text (job.status == "failed" ? job.error : "Watch the popover; this window fills in when it finishes.") class=Secondary
-          when job.ready and job.status == "done"
+          if job.ready and job.status == "done"
             row flex=1 min-height=0
               column width=320 flex-shrink=0 border-right-style="solid" border-right-width=1 border-color="light-dark(#e1e4e8, #1f242c)" min-height=0
                 scroll flex=1 min-height=0
@@ -1094,58 +1094,58 @@ component Revu
                       text (job.summary == "" ? "The agent returned no summary." : job.summary) markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#596068, #9aa4ae)" line-clamp=8 testId="summary"
                     row padding=16 padding-top=12 padding-bottom=6 justify-content="space-between" align-items="center"
                       text "Findings" class=SectionLabel
-                      text `${job.chosenCount} of ${length(job.comments)} selected` class=Tertiary testId="chosen-count"
-                    each c in job.comments key=`${c.index}`
+                      text `${job.chosenCount} of ${(job.comments).length} selected` class=Tertiary testId="chosen-count"
+                    for c in job.comments key=`${c.index}`
                       row class=Row gap=10 background-color=(selectedFinding == c.index ? "light-dark(#f0f1f2, #1d2128)" : "transparent")
                         button press=toggleComment(c.index) width=16 height=16 border-radius=4 flex-shrink=0 margin-top=1 align-items="center" justify-content="center" border-style="solid" border-width=1 border-color=(c.chosen ? "light-dark(#11181c, #e6edf3)" : "light-dark(#d7dbdf, #30363d)") background-color=(c.chosen ? "light-dark(#11181c, #e6edf3)" : "light-dark(#ffffff, #0b0f14)") padding=0 disabled=job.posted testId=`choose-${c.index}` aria-label=`Include comment ${c.index + 1}`
-                          when c.chosen
+                          if c.chosen
                             text "✓" color="light-dark(#ffffff, #0b0f14)" font-size=10 font-weight=700
                         button press=selectFinding(c.index) flex=1 min-width=0 gap=4 background-color="transparent" border-width=0 padding=0 text-align="left" display="flex" flex-direction="column" align-items="stretch"
                           row gap=6 align-items="center"
                             text c.severity class=Tag text-transform="uppercase" background-color=(c.severity == "critical" ? "light-dark(rgb(255, 220, 220), rgba(207, 34, 46, 0.18))" : c.severity == "design" ? "light-dark(rgb(255, 244, 194), rgba(255, 210, 44, 0.16))" : c.severity == "suggestion" ? "light-dark(rgb(219, 231, 255), rgba(33, 136, 255, 0.18))" : "light-dark(#f5f5f7, #161a20)") color=(c.severity == "critical" ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : c.severity == "design" ? "light-dark(#8a6d00, #ffd36b)" : c.severity == "suggestion" ? "light-dark(#0072DE, #4aa8ff)" : "light-dark(#596068, #9aa4ae)")
                             text `${c.path}:${c.line}` font-family="ui-monospace" font-size=11 color="light-dark(#687076, #6e7781)" line-clamp=1 flex=1 min-width=0
                           text c.title font-size=13 font-weight=500 line-height=1.35 line-clamp=2
-                    when length(job.comments) == 0
+                    if (job.comments).length == 0
                       text (job.hasResult ? "No comments: the agent found nothing to say." : "The agent left no findings JSON; its output is in the popover.") class=Tertiary padding-left=16 padding-bottom=12
               column flex=1 min-width=0 min-height=0
                 scroll flex=1 min-height=0
-                  each c in job.comments key=`detail-${c.index}`
-                    when c.index == selectedFinding
+                  for c in job.comments key=`detail-${c.index}`
+                    if c.index == selectedFinding
                       column padding=20 padding-left=24 padding-right=24 gap=14
                         row gap=8 align-items="center"
                           text c.severity class=Tag text-transform="uppercase" background-color=(c.severity == "critical" ? "light-dark(rgb(255, 220, 220), rgba(207, 34, 46, 0.18))" : c.severity == "design" ? "light-dark(rgb(255, 244, 194), rgba(255, 210, 44, 0.16))" : c.severity == "suggestion" ? "light-dark(rgb(219, 231, 255), rgba(33, 136, 255, 0.18))" : "light-dark(#f5f5f7, #161a20)") color=(c.severity == "critical" ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : c.severity == "design" ? "light-dark(#8a6d00, #ffd36b)" : c.severity == "suggestion" ? "light-dark(#0072DE, #4aa8ff)" : "light-dark(#596068, #9aa4ae)")
                           text `${c.path}:${c.line}` font-family="ui-monospace" font-size=12 color="light-dark(#596068, #9aa4ae)" line-clamp=1
                         text c.title font-size=18 font-weight=600 letter-spacing=-0.2 line-height=1.3
-                        when length(c.hunk) > 0 or expandedFinding == c.index
+                        if (c.hunk).length > 0 or expandedFinding == c.index
                           column border-style="solid" border-width=1 border-color="light-dark(#eaecf0, #1f242c)" border-radius=8 overflow="hidden" font-family="ui-monospace" font-size=12 testId="hunk"
                             // The file bar, as GitHub's: path, and ⤢ to see the whole file.
                             row padding-top=6 padding-bottom=6 padding-left=12 padding-right=8 gap=8 align-items="center" background-color="light-dark(#f9fafb, #111418)" border-bottom-style="solid" border-bottom-width=1 border-color="light-dark(#eaecf0, #171b21)"
                               text c.path font-size=11 color="light-dark(#596068, #9aa4ae)" line-clamp=1 flex=1 min-width=0
-                              when expandedFinding == c.index
+                              if expandedFinding == c.index
                                 text (fileView.ready ? `@ ${fileView.sha}` : "") font-size=11 color="light-dark(#687076, #6e7781)"
                                 button press=collapseFinding class=OutlineSm height=22 font-size=11 testId="collapse-file"
                                   text "Collapse"
                               else
                                 button press=expandFinding(c.index, c.path, c.side, c.line) class=OutlineSm height=22 font-size=11 testId="expand-file"
                                   text "⤢ Whole file"
-                            when expandedFinding == c.index
-                              when not fileView.ready and fileView.error == ""
+                            if expandedFinding == c.index
+                              if not fileView.ready and fileView.error == ""
                                 column padding=12 gap=6
                                   Skeleton(w="70%", h=12)
                                   Skeleton(w="55%", h=12)
                                   Skeleton(w="80%", h=12)
-                              when fileView.error != ""
+                              if fileView.error != ""
                                 text fileView.error class=Error padding=12
-                              when fileView.ready
+                              if fileView.ready
                                 scroll max-height=480 testId="file-view"
                                   column
-                                    each fl in fileView.lines key=`${fl.no}`
+                                    for fl in fileView.lines key=`${fl.no}`
                                       row background-color=(fl.kind == "add" ? "light-dark(rgb(220, 255, 228), rgba(9, 141, 72, 0.18))" : fl.kind == "del" ? "light-dark(rgb(255, 220, 220), rgba(207, 34, 46, 0.18))" : "transparent") border-left-style="solid" border-left-width=2 border-left-color=(fl.target ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : "transparent")
                                         text `${fl.no}` width=40 text-align="right" padding-right=10 color="light-dark(#c9d1d9, #484f58)" line-height=1.7 flex-shrink=0
                                         text `${fl.kind == "add" ? "+" : fl.kind == "del" ? "−" : " "} ${fl.text}` white-space="pre" line-clamp=1 line-height=1.7 padding-left=8 flex=1 min-width=0
                             else
-                              each l in c.hunk key=`${l.oldNo}:${l.newNo}:${l.text}`
-                                when l.oldNo == -1 and l.newNo == -1
+                              for l in c.hunk key=`${l.oldNo}:${l.newNo}:${l.text}`
+                                if l.oldNo == -1 and l.newNo == -1
                                   text l.text padding-top=6 padding-bottom=6 padding-left=12 padding-right=12 background-color="light-dark(#f9fafb, #111418)" color="light-dark(#687076, #6e7781)" font-size=11 border-bottom-style="solid" border-bottom-width=1 border-color="light-dark(#eaecf0, #171b21)"
                                 else
                                   row background-color=(l.kind == "add" ? "light-dark(rgb(220, 255, 228), rgba(9, 141, 72, 0.18))" : l.kind == "del" ? "light-dark(rgb(255, 220, 220), rgba(207, 34, 46, 0.18))" : "transparent") border-left-style="solid" border-left-width=2 border-left-color=(l.target ? "light-dark(rgb(207, 34, 46), #ff7a7a)" : "transparent")
@@ -1155,24 +1155,24 @@ component Revu
                           row justify-content="space-between" align-items="center"
                             row gap=8 align-items="center"
                               text "Comment to post" class=Tertiary
-                              when c.edited
+                              if c.edited
                                 text "EDITED" class=Tag background-color="light-dark(rgb(255, 244, 194), rgba(255, 210, 44, 0.16))" color="light-dark(#8a6d00, #ffd36b)"
                             row gap=4
-                              when c.edited and editingComment != c.index
+                              if c.edited and editingComment != c.index
                                 button press=resetComment(c.index) class=Ghost height=24 font-size=12 padding-left=8 padding-right=8 testId="reset-comment"
                                   text "Reset to the agent's"
-                              when editingComment == c.index
+                              if editingComment == c.index
                                 button press=doneEditing class=Ghost height=24 font-size=12 padding-left=8 padding-right=8 testId="done-editing"
                                   text "Done"
                               else
                                 button press=editComment(c.index, c.body) class=Ghost height=24 font-size=12 padding-left=8 padding-right=8 disabled=job.posted testId="edit-comment"
                                   text "Edit"
-                          when editingComment == c.index
+                          if editingComment == c.index
                             textarea value=commentDraft input=changeComment aria-label="Comment to post" width="100%" min-height=160 box-sizing="border-box" padding=12 border-style="solid" border-width=1 border-color="light-dark(#11181c, #e6edf3)" border-radius=6 background-color="light-dark(#ffffff, #0b0f14)" color="light-dark(#11181c, #e6edf3)" font-size=13 line-height="20px" font-family="system-ui" testId="comment-editor"
                           else
                             button press=editComment(c.index, c.body) disabled=job.posted display="flex" flex-direction="column" align-items="stretch" text-align="left" border-style="solid" border-width=1 border-color="light-dark(#e1e4e8, #1f242c)" border-radius=6 padding=12 background-color="transparent" width="100%" box-sizing="border-box" testId="comment-preview"
                               text c.body markup="markdown" width="100%" font-size=13 line-height="20px" color="light-dark(#11181c, #e6edf3)"
-                  when length(job.comments) == 0
+                  if (job.comments).length == 0
                     text "Nothing to show." class=Tertiary padding=20
                 row padding=12 padding-left=24 padding-right=24 gap=10 align-items="center" background-color="light-dark(#f9fafb, #111418)" border-top-style="solid" border-top-width=1 border-color="light-dark(#e1e4e8, #1f242c)" flex-shrink=0
                   select value=(verdict == "" ? job.verdict : verdict) change=setVerdict disabled=job.posted testId="verdict" aria-label="Verdict" height=32 font-size=13
@@ -1182,11 +1182,11 @@ component Revu
                   text (job.posted ? `Staged ${job.postedCount} as a pending review` : "Posted as a pending review from you") class=Tertiary flex=1 line-clamp=2
                   match postResult
                     case some(p)
-                      when p.error != ""
+                      if p.error != ""
                         text p.error class=Error line-clamp=2 testId="post-error"
                     case none
                       box
-                  when job.posted
+                  if job.posted
                     button press=openLink(job.postedUrl) class=PrimarySm testId="open-pending"
                       text "Finish on GitHub ↗"
                   else
@@ -1194,10 +1194,10 @@ component Revu
                       text (posting ? "Posting…" : `Post ${job.chosenCount} ${job.chosenCount == 1 ? "comment" : "comments"}`)
 
       // ---- 1f Settings — skills mapped by repository ---------------------
-      when signedIn and screen == "settings"
+      if signedIn and screen == "settings"
         column flex=1 min-height=0 testId="settings-screen"
           row height=44 padding-right=12 padding-left=(wide ? 80 : 12) gap=6 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#f9fafb, #111418)" flex-shrink=0
-            when not wide
+            if not wide
               button press=goBack class=IconBtn testId="back" aria-label="Back"
                 Icon(name="chevron-left", size=16, color="light-dark(#596068, #9aa4ae)")
             row flex=1 justify-content="center" gap=4 padding-right=(wide ? 52 : 0)
@@ -1211,7 +1211,7 @@ component Revu
                 text "Model"
             box width=28
           scroll flex=1 min-height=0
-            when settingsTab == "general"
+            if settingsTab == "general"
               column padding=16 gap=12
                 text "General" class=SectionLabel
                 row justify-content="space-between" align-items="center"
@@ -1220,7 +1220,7 @@ component Revu
                 row justify-content="space-between" align-items="center"
                   text "Notifications" font-size=13
                   text (notifications.available ? notifications.permission : "unavailable here") class=Secondary testId="notification-status"
-                when notifications.available and notifications.permission != "granted"
+                if notifications.available and notifications.permission != "granted"
                   button press=askPermission class=Outline align-self="flex-start" testId="ask-permission"
                     text "Allow notifications"
                 row justify-content="space-between" align-items="center"
@@ -1229,7 +1229,7 @@ component Revu
                 row justify-content="space-between" align-items="center"
                   text "AI review sidecar" font-size=13
                   text (sidecar.reachable ? `ready · runner ${sidecar.runner}` : "offline") class=Secondary testId="sidecar-status"
-            when settingsTab == "accounts"
+            if settingsTab == "accounts"
               column padding=16 gap=12
                 text "GitHub" class=SectionLabel
                 row justify-content="space-between" align-items="center"
@@ -1238,7 +1238,7 @@ component Revu
                     text "Token in the macOS Keychain · scopes notifications, repo, read:user" class=Tertiary
                   button press=doSignOut class=Outline testId="sign-out"
                     text "Sign out"
-            when settingsTab == "model"
+            if settingsTab == "model"
               column padding=16 gap=12 max-width=560
                 text "Local agent" class=SectionLabel
                 text "Reviews run on the agent CLI you already use and are signed in to. Nothing is checked out: the agent reads the pull request through gh." font-size=12 line-height=1.5 color="light-dark(#687076, #6e7781)"
@@ -1258,16 +1258,16 @@ component Revu
                   input value=(modelDraft == "" ? agents.model : modelDraft) input=setModelDraft autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="opus" class=Field flex=1 testId="model"
                   button press=saveModel class=OutlineSm height=30 disabled=(modelDraft == "" or modelDraft == agents.model) testId="save-model"
                     text "Save"
-                when not sidecar.reachable
+                if not sidecar.reachable
                   text "The sidecar is offline; availability is unknown." class=Error
-            when settingsTab == "skills"
+            if settingsTab == "skills"
               row flex-wrap="wrap" align-items="flex-start" min-height="100%" width="100%" box-sizing="border-box"
                 column width=(wide ? 300 : "100%") flex-shrink=0 border-right-style="solid" border-right-width=(wide ? 1 : 0) border-color="light-dark(#e1e4e8, #1f242c)" min-height=(wide ? "100%" : 0) testId="rules-pane"
                   column padding=16 padding-bottom=8 gap=8
                     row justify-content="space-between" align-items="center"
                       text "Repository rules" class=SectionLabel
                     text "First match wins. Patterns support *." font-size=12 line-height=1.5 color="light-dark(#687076, #6e7781)"
-                    each rule in skills.rules key=rule.pattern
+                    for rule in skills.rules key=rule.pattern
                       row padding-top=8 padding-bottom=8 padding-left=8 padding-right=8 border-radius=6 gap=10 align-items="center" background-color=(rule.skill == skills.selected ? "light-dark(#eaecf0, #252932)" : "transparent")
                         column flex=1 min-width=0 gap=2
                           text rule.pattern font-family="ui-monospace" font-size=12 font-weight=500
@@ -1281,7 +1281,7 @@ component Revu
                         Icon(name="plus", size=13, color="light-dark(#11181c, #e6edf3)")
                     match rules
                       case some(r)
-                        when r.error != ""
+                        if r.error != ""
                           text r.error class=Error
                       case none
                         box
@@ -1289,7 +1289,7 @@ component Revu
                   column padding=16 padding-top=12 gap=8
                     text "Test a repository" class=Tertiary
                     input value=testRepo input=setTestRepo autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="expo/orbit" class=Field testId="test-repo"
-                    when testRepo != ""
+                    if testRepo != ""
                       row gap=4 class=Secondary
                         text "Uses"
                         text `${testMatch.skill}.md` class=Mono
@@ -1299,24 +1299,24 @@ component Revu
                   row padding-top=12 padding-bottom=12 padding-left=20 padding-right=20 gap=10 align-items="center" border-bottom-style="solid" border-bottom-width=1 border-color="light-dark(#eaecf0, #252932)"
                     Icon(name="file-text", size=15, color="light-dark(#687076, #6e7781)")
                     row gap=6 flex-wrap="wrap"
-                      each s in skills.skills key=s.name
+                      for s in skills.skills key=s.name
                         button press=selectSkill(s.name) class=(s.name == skills.selected ? ChipOn : Chip) testId=`skill-${s.name}`
                           text `${s.name}.md`
-                    when skillEditing
+                    if skillEditing
                       text "EDITED" class=Tag background-color="light-dark(rgb(255, 244, 194), rgba(255, 210, 44, 0.16))" color="light-dark(#8a6d00, #ffd36b)"
                     text (skills.error != "" ? skills.error : skills.reachable ? `Used by ${skills.usedBy}` : "sidecar offline") class=(skills.reachable ? Tertiary : Error) flex=1 text-align="right" line-clamp=1
-                  when skills.selected != ""
-                    when skillEditing
+                  if skills.selected != ""
+                    if skillEditing
                       textarea value=skillDraft input=changeSkill font-family="ui-monospace" font-size=12 line-height=1.75 height=(wide ? 480 : 320) width="100%" box-sizing="border-box" padding=12 padding-left=14 border-width=0 background-color="light-dark(#fbfcfd, #0f1318)" color="light-dark(#11181c, #e6edf3)" testId="skill-editor"
                     else
                       column background-color="light-dark(#fbfcfd, #0f1318)" padding-top=12 padding-bottom=12 overflow="hidden" min-height=(wide ? 480 : 0)
-                        each l in skills.lines key=l.n
+                        for l in skills.lines key=l.n
                           row gap=0
                             text `${l.n}` font-family="ui-monospace" font-size=12 line-height=1.75 color="light-dark(#c9d1d9, #484f58)" width=44 text-align="right" padding-right=12 flex-shrink=0 border-right-style="solid" border-right-width=1 border-color="light-dark(#eaecf0, #252932)"
                             text l.text font-family="ui-monospace" font-size=12 line-height=1.75 color=(l.heading ? "light-dark(#0072DE, #4aa8ff)" : "light-dark(#11181c, #e6edf3)") font-weight=(l.heading ? 600 : 400) white-space="pre" line-clamp=1 flex=1 min-width=0 padding-left=14
                     row gap=10 align-items="center" padding=12 padding-left=20 padding-right=20 border-top-style="solid" border-top-width=1 border-color="light-dark(#e1e4e8, #1f242c)" background-color="light-dark(#f9fafb, #111418)"
                       text skills.path class=Tertiary flex=1 line-clamp=1
-                      when skillEditing
+                      if skillEditing
                         button press=revertSkill class=Ghost height=30 testId="revert-skill"
                           text "Revert"
                         button press=saveSkill class=PrimarySm height=30 testId="save-skill"
@@ -1326,7 +1326,7 @@ component Revu
                           text "Edit"
                     match saved
                       case some(s)
-                        when s.error != ""
+                        if s.error != ""
                           text s.error class=Error padding-left=20
                       case none
                         box
@@ -1351,15 +1351,15 @@ component Step
   view
     row gap=10 align-items="center" font-size=13
       column width=16 height=16 align-items="center" justify-content="center" flex-shrink=0
-        when state == "done"
+        if state == "done"
           column width=14 height=14 border-radius=9999 background-color="light-dark(rgb(9, 141, 72), #4ade80)" align-items="center" justify-content="center"
             text "✓" color="#fff" font-size=9 font-weight=700 line-height="9px"
-        when state == "active"
+        if state == "active"
           box width=14 height=14 border-radius=9999 border-style="solid" border-width=2 border-color="light-dark(#d7dbdf, #30363d)" border-top-color="light-dark(#11181c, #e6edf3)" box-sizing="border-box" animation="spin 900ms linear infinite"
-        when state == "pending"
+        if state == "pending"
           box width=12 height=12 border-radius=9999 border-style="solid" border-width=1.5 border-color="light-dark(#d7dbdf, #30363d)" box-sizing="border-box"
       text label flex=1 color=(state == "done" ? "light-dark(#596068, #9aa4ae)" : state == "active" ? "light-dark(#11181c, #e6edf3)" : "light-dark(#687076, #6e7781)")
-      when meta != ""
+      if meta != ""
         text meta font-family="ui-monospace" font-size=12 color="light-dark(#687076, #6e7781)"
 
 // Lucide icons (stroke 2, round caps), as in the design.
@@ -1370,43 +1370,43 @@ component Icon
     color: string
   view
     svg width=size height=size viewBox="0 0 24 24" fill="none" flex-shrink=0
-      when name == "git-pull-request"
+      if name == "git-pull-request"
         circle cx=18 cy=18 r=3 stroke=color stroke-width=2
         circle cx=6 cy=6 r=3 stroke=color stroke-width=2
         path d="M13 6h3a2 2 0 0 1 2 2v7" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M6 9v12" stroke=color stroke-width=2 stroke-linecap="round"
-      when name == "refresh"
+      if name == "refresh"
         path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M21 3v5h-5" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M8 16H3v5" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
-      when name == "settings"
+      if name == "settings"
         path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         circle cx=12 cy=12 r=3 stroke=color stroke-width=2
-      when name == "sparkles"
+      if name == "sparkles"
         path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M20 3v4" stroke=color stroke-width=2 stroke-linecap="round"
         path d="M22 5h-4" stroke=color stroke-width=2 stroke-linecap="round"
         path d="M4 17v2" stroke=color stroke-width=2 stroke-linecap="round"
         path d="M5 18H3" stroke=color stroke-width=2 stroke-linecap="round"
-      when name == "chevron-left"
+      if name == "chevron-left"
         path d="m15 18-6-6 6-6" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
-      when name == "chevron-down"
+      if name == "chevron-down"
         path d="m6 9 6 6 6-6" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
-      when name == "log-in"
+      if name == "log-in"
         path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="m10 17 5-5-5-5" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M15 12H3" stroke=color stroke-width=2 stroke-linecap="round"
-      when name == "file-text"
+      if name == "file-text"
         path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M14 2v4a2 2 0 0 0 2 2h4" stroke=color stroke-width=2 stroke-linecap="round" stroke-linejoin="round"
         path d="M10 9H8" stroke=color stroke-width=2 stroke-linecap="round"
         path d="M16 13H8" stroke=color stroke-width=2 stroke-linecap="round"
         path d="M16 17H8" stroke=color stroke-width=2 stroke-linecap="round"
-      when name == "plus"
+      if name == "plus"
         path d="M5 12h14" stroke=color stroke-width=2 stroke-linecap="round"
         path d="M12 5v14" stroke=color stroke-width=2 stroke-linecap="round"
-      when name == "x"
+      if name == "x"
         path d="M18 6 6 18" stroke=color stroke-width=2 stroke-linecap="round"
         path d="m6 6 12 12" stroke=color stroke-width=2 stroke-linecap="round"
 
