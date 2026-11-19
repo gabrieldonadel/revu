@@ -6,7 +6,7 @@
 set -euo pipefail
 APP="$1"
 cd "$(dirname "$0")/.."
-SRC="revu-app/icon.png"
+SRC="revu-app/assets/icon.png"
 WORK="$(mktemp -d)"
 SET="$WORK/Assets.xcassets/AppIcon.appiconset"
 mkdir -p "$SET"

@@ -28,7 +28,7 @@
   "background_color": "#ffffff",
   "icons": [
     {
-      "src": "../revu-app/icon.png",
+      "src": "assets/icon.png",
       "sizes": "1024x1024",
       "type": "image/png"
     }
